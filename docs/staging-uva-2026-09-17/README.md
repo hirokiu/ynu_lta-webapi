@@ -26,4 +26,22 @@ Debian 12 amd64、メモリ約2GB、ルートディスク空き約186GB。初回
 
 ## 現在の状態
 
-初期導入スクリプト配置・構文確認まで完了。管理者のsudo実行待ち。アプリ起動・DB移行・DNS切り替えは未実施。
+確認環境の構築・起動・ブラウザー確認まで完了。DNS切り替えは未実施。
+
+- Docker Engine 29.8.1 / Compose v5.5.1。
+- ビルド元：API `bcd593f`、Web `69aec91`。イメージ名 `kirokun-api:staging-bcd593f` / `kirokun-web:staging-bcd593f`。
+- Web/API/MongoDBはすべてhealthy。通知falseを実コンテナーで確認。
+- 確認用データ取得：2026-09-17 18:57 JST、旧APIを停止しないオンライン取得。最終移行用ではない。
+- バックアップSHA-256：`e5795cb018855d169965e8f54b993b385ed56ad6fa745b4ba15a9c609bfb3926`。
+- 復元件数：users45、groups12、surveys56、assignments4,182、assignmentresults4,651（計8,946）。
+- 新サーバーで論理バックアップを再取得し、隔離コンテナーへの復元と全コレクション件数一致を確認。一時復元コンテナーは削除済み。
+- Chromeで既存アカウントのFirebaseログイン、Survey一覧の2ページ目、CSV生成リンクを確認。
+- 読み取りAPI：Survey50件＋次ページあり、配信50件＋次ページあり、指定利用者の配信取得成功。
+- 回答最多のSurveyで、CSVの1,247行がDBの1,247回答と一致。日本語の先頭3列も一致。サーバー内リクエストで約0.27秒（単発確認であり、本番比較の性能測定ではない）。
+- 確認時のメモリavailable約1.2GB。待受はSSH22、既存ローカル監視10050、確認用Web127.0.0.1:8080。DB/APIポートは外部待受なし。
+- このMacからSSHトンネルを接続済み。Chromeで `http://localhost:18080/surveys` を確認できる。Codex内蔵ブラウザーではFirebase通信エラーが出たためChromeで検証。
+- 定期バックアップ・再起動のタイマーはまだ有効化していない。設定は`ops/schedule.conf`。本番移行時に適用する。
+
+確認環境で変更したDBは旧本番へ同期しない。確認用コピーの取得後に旧本番で発生した回答は、最終移行時の再取得で取り込む。
+
+SSHトンネルが切れた場合は、Macのターミナルで前掲のトンネルコマンドを実行する。今回作成した接続の終了は `ssh -S /tmp/kirokun-staging-ssh.sock -O exit uva.alchembright.com`。秘密鍵・DBバックアップ・認証トークンはGitに保存していない。
