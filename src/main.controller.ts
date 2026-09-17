@@ -18,6 +18,9 @@ export class Controller {
     this.app.route('/api/ping').get(this.surveyService.getPingMessage);
     this.app.route('/api/survey').get(this.surveyService.exampleSurvey);
 
+    this.app.get('/api/admin/assignments', (req, res) => this.surveyService.getAdminPage(req, res, "assignments"));
+    this.app.get('/api/admin/surveys', (req, res) => this.surveyService.getAdminPage(req, res, "surveys"));
+
     /* survey */
     this.app.route('/api/surveys').get(this.surveyService.getAllSurveys);
     this.app.route('/api/surveys').post(this.surveyService.addNewSurvey);

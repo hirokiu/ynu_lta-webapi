@@ -20,3 +20,10 @@ cheatsheet
 
 # Preserve the dependency lock from the running baseline.
 !package-lock.json
+
+.env
+.env.*
+!.env.example
+dist/
+ops/state/
+backups/

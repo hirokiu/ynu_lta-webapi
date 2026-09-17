@@ -4,7 +4,7 @@ export const PORT = 9001;
 export const WEBAPP_URL = "http://ynu-lta.dev.alchembright.com/";
 
 // export const MONGO_URL = "mongodb://localhost:27017/Survey";
-export const MONGO_URL = "mongodb://mongodb:27017/Survey";
+export const MONGO_URL = process.env.MONGO_URL || "mongodb://mongodb:27017/Survey";
 
 export const ADMIN_USERNAMES = ["uematsu@alchembright.com", "hiroki_u", "test01", "hanzawa", "hasegawa"]
 

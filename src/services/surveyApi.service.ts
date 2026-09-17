@@ -19,6 +19,7 @@ import {
 } from "../constants/surveyApi.constants"
 
 import admin from "./firebaseAdmin.service";
+import { pageOptions, literalSearch, dateRange } from "../utils/query";
 import Rand, { PRNG } from 'rand-seed';
 
 export const getAuthToken = (req: Request, res: Response, callback: (ah: any) => void) => {
@@ -45,7 +46,7 @@ export const checkIfAuthenticatedAdmin = (req: Request, res: Response, callback:
             return callback(verifiedUserId);
 
         } catch (e) {
-            SurveyService.dbgMsg("Unauthorized: " + e + "\n auth header:\n" + ah);
+            SurveyService.dbgMsg("Unauthorized request");
             return res.status(401).send({ error: 'You are not authorized to make this request' });
         }
     });
@@ -67,7 +68,7 @@ export const checkIfAuthenticatedUserIdOrAdmin = (userId: String, req: Request, 
 
             return callback(verifiedUserId);
         } catch (e) {
-            SurveyService.dbgMsg("Unauthorized: " + e + "\n auth header:\n" + ah);
+            SurveyService.dbgMsg("Unauthorized request");
             return res.status(401).send({ error: 'You are not authorized to make this request' });
         }
     });
@@ -84,7 +85,7 @@ export const getAuthenticatedUserId = (req: Request, res: Response, callback: (u
 
             return callback(verifiedUserId);
         } catch (e) {
-            SurveyService.dbgMsg("Unauthorized: " + e + "\n auth header:\n" + ah);
+            SurveyService.dbgMsg("Unauthorized request");
             return res.status(401).send({ error: 'You are not authorized to make this request' });
         }
     });
@@ -345,6 +346,37 @@ export class SurveyService {
 
 
     /* survey */
+
+    // Opt-in admin endpoints leave mobile/legacy response contracts unchanged.
+    public async getAdminPage(req: Request, res: Response, kind: string) {
+        checkIfAuthenticatedAdmin(req, res, async () => {
+            let paging: any, filter: any = {};
+            try {
+                paging = pageOptions(req.query);
+                const search = literalSearch(req.query.t);
+                const range = dateRange(req.query.from, req.query.to);
+                if (kind === "assignments") {
+                    const clauses: any[] = [];
+                    if (range) clauses.push({ $or: [{ publishAt: range }, { publishFrom: { $lte: range.$lte }, publishTo: { $gte: range.$gte } }] });
+                    if (search) clauses.push({ $or: [{ "survey.name": search }, { userId: search }, { groupId: search }] });
+                    if (req.query.surveyId) {
+                        if (!/^[a-f0-9]{24}$/i.test(String(req.query.surveyId))) throw new global.Error("Invalid survey ID");
+                        clauses.push({ "survey._id": req.query.surveyId });
+                    }
+                    if (clauses.length) filter = { $and: clauses };
+                } else if (search) filter.name = search;
+            } catch (error) { res.status(400).json({ error: "Invalid filters" }); return; }
+            try {
+                const model: any = kind === "assignments" ? Assignment : Survey;
+                const items = await model.find(filter)
+                    .select(kind === "assignments" ? "userId groupId publishAt expireAt publishFrom publishTo publishNotifiedAt expireNotifiedAt firstOpenedAt lastOpenedAt createdAt survey._id survey.name survey.title survey.questions._id dataset.createdAt" : "name title createdAt questions._id")
+                    .sort(kind === "assignments" ? { publishAt: -1, _id: -1 } : { createdAt: -1, _id: -1 })
+                    .skip(paging.skip).limit(paging.limit + 1).lean().maxTimeMS(15000).exec();
+                const hasMore = items.length > paging.limit;
+                res.json({ items: items.slice(0, paging.limit), page: paging.page, limit: paging.limit, hasMore });
+            } catch (error) { res.status(500).json({ error: "Could not load page" }); }
+        });
+    }
 
     public getAllSurveys(req: Request, res: Response) {
         SurveyService.dbgReq(req);
@@ -1088,20 +1120,17 @@ export class SurveyService {
                                 });
 
                                 // Get all assignmentresults for those assignment ids
-                                AssignmentResults.find().where('assignment').in(arrayOfAssIds).exec((err, assignmentResults: any) => {
+                                AssignmentResults.find({ userId: req.params.uid }).where('assignment').in(arrayOfAssIds).lean().exec((err, assignmentResults: any) => {
 
-                                    assignmentResults.forEach((ar: any) => {
-                                        assignments.forEach((a: any ) => {
-                                            // console.log(a._id + " : " + ar.get('assignment'))
-                                            if (String(a._id) == String(ar.assignment) && req.params.uid == ar.userId) {
-                                                a.publishNotifiedAt = ar.publishNotifiedAt
-                                                a.expireNotifiedAt = ar.expireNotifiedAt
-                                                a.firstOpenedAt = ar.firstOpenedAt
-                                                a.lastOpenedAt = ar.lastOpenedAt
-                                                a.dataset = ar.dataset
-                                                a.userId = ar.userId
-                                            }
-                                        });
+                                    if (err) { res.status(500).json({ error: "Could not load results" }); return; }
+                                    const resultsByAssignment = new Map<string, any>();
+                                    assignmentResults.forEach((ar: any) => resultsByAssignment.set(String(ar.assignment), ar));
+                                    assignments.forEach((a: any) => {
+                                        const ar = resultsByAssignment.get(String(a._id));
+                                        if (ar) {
+                                            ["publishNotifiedAt", "expireNotifiedAt", "firstOpenedAt", "lastOpenedAt", "dataset", "userId"]
+                                                .forEach(key => a[key] = ar[key]);
+                                        }
                                     });
 
                                     res.json(assignments.sort((a: any, b: any) => a.publishAt < b.publishAt ? -1 : a.publishAt > b.publishAt ? 1 : 0))
@@ -1227,7 +1256,6 @@ export class SurveyService {
 */
 
 
-//console.log(`Debug: index=${answer.index}, type=${answer.type}, data=`, JSON.stringify(answer));
 private static getDatasetsOfAssignments(assignments: any) {
     let flattened = new Array();
     let allKeys = new Set<string>();
@@ -1256,7 +1284,6 @@ private static getDatasetsOfAssignments(assignments: any) {
             const indexStr = SurveyService.pad(answer.index, 2);
             const key = `q${indexStr}`;
 
-console.log(`Debug: index=${answer.index}, type=${answer.type}, data=`, JSON.stringify(answer));
 
             let val = "";
             if (answer.stringValue !== undefined && answer.stringValue !== null && answer.stringValue !== "") {
@@ -1356,7 +1383,6 @@ console.log(`Debug: index=${answer.index}, type=${answer.type}, data=`, JSON.str
                         if (error) {
                             res.send(error);
                         } else {
-                            console.log("here the resulting csv: " + csv);
 
                             res.send(csv);
                         }
@@ -1368,39 +1394,28 @@ console.log(`Debug: index=${answer.index}, type=${answer.type}, data=`, JSON.str
     }
 
     public getAllDatasetsOfSurvey_ar(req: Request, res: Response, format: String) {
-        SurveyService.dbgReq(req);
-        checkIfAuthenticatedAdmin(req, res, (uid: string) => {
-            SurveyService.dbgMsg("greetings admin " + uid + "!");
-
-            const surveyId = req.params.sid as String;
-
-            Assignment.find({ "survey._id": surveyId }, (error: Error, assignments: any) => {
-                if (error) { res.send(error); }
-                else {
-                    var arrayOfAssIds = assignments.map(function (a: any) { return a._id; })
-
-                    AssignmentResults.find().where('assignment').in(arrayOfAssIds).exec((err, assignmentResults: any) => {
-                        if (error) { res.send(error); } 
-                        else {
-                            const assignmentsBlob = SurveyService.getDatasetsOfAssignments(assignmentResults);
-                            if (format === "csv") {
-                                converter.json2csv(assignmentsBlob, (error: Error, csv: string) => {
-                                    if (error) { res.send(error); } 
-                                    else {
-                                        console.log("here the resulting csv: " + csv);
-            
-                                        res.send(csv);
-                                    }
-                                }, { "unwindArrays": true }
-                                );
-                            } else {
-                                res.json(assignmentsBlob);
-                            }
-                        }
-                    })
-                }
-            })
-        })
+        checkIfAuthenticatedAdmin(req, res, async () => {
+            let range: any;
+            try { range = dateRange(req.query.from, req.query.to); }
+            catch (error) { res.status(400).json({ error: "Invalid date range" }); return; }
+            try {
+                // Only IDs are needed for the join; never load embedded questionnaires here.
+                const ids = await Assignment.find({ "survey._id": req.params.sid }).select("_id").lean().exec();
+                const filter: any = { assignment: { $in: ids.map((a: any) => a._id) }, "dataset.answers.0": { $exists: true } };
+                // Same timestamp precedence as the production CSV formatter.
+                if (range) filter.$or = [{ lastOpenedAt: range }, { lastOpenedAt: null, updatedAt: range }];
+                const results = await AssignmentResults.find(filter)
+                    .select("userId user dataset lastOpenedAt updatedAt").limit(10001).lean().maxTimeMS(60000).exec();
+                if (results.length > 10000) { res.status(413).json({ error: "More than 10000 results; select a shorter date range" }); return; }
+                const rows = SurveyService.getDatasetsOfAssignments(results);
+                if (format !== "csv") { res.json(rows); return; }
+                if (!rows.length) { res.type("text/csv").send(""); return; }
+                converter.json2csv(rows, (error: any, csv: string) => {
+                    if (error) { res.status(500).json({ error: "Could not generate export" }); return; }
+                    res.type("text/csv").send(csv);
+                }, { unwindArrays: true });
+            } catch (error) { console.error("Export failed", error instanceof global.Error ? error.message : "Unknown error"); res.status(500).json({ error: "Could not load export" }); }
+        });
     }
 
     public FindRegistrationTokensForNotification(

@@ -27,19 +27,24 @@ class Api {
 
         this.cloudMessageService = new CloudMessageService();
         this.surveyService = new SurveyService();
-        this.startBackgroundRunner();
+        if (process.env.NOTIFICATIONS_ENABLED !== "false") this.startBackgroundRunner();
     }
 
     private setConfig() {
         this.api.use(bodyParser.json({ limit: '50mb' }));
         this.api.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
         this.api.use(cors());
+        this.api.get("/api/health", (_req, res) => {
+            const ready = mongoose.connection.readyState === 1;
+            res.status(ready ? 200 : 503).json({ ready });
+        });
     }
 
     private setMongoConfig() {
         mongoose.Promise = global.Promise;
         mongoose.connect(MONGO_URL, {
-            useNewUrlParser: true
+            useNewUrlParser: true,
+            autoIndex: false
         });
     }
 

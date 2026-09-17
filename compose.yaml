@@ -1,0 +1,54 @@
+name: ${COMPOSE_PROJECT_NAME:-kirokun}
+services:
+  mongodb:
+    image: mongo:4.2.24
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongo", "--quiet", "--eval", "quit(db.adminCommand('ping').ok ? 0 : 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging: &logging
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+  api:
+    image: kirokun-api:${RELEASE_ID:?Set RELEASE_ID in .env}
+    build: .
+    restart: unless-stopped
+    init: true
+    environment:
+      MONGO_URL: mongodb://mongodb:27017/Survey
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase
+      NOTIFICATIONS_ENABLED: ${NOTIFICATIONS_ENABLED:-false}
+      TZ: UTC
+    secrets: [firebase]
+    depends_on:
+      mongodb: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:9001/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging: *logging
+  web:
+    image: kirokun-web:${RELEASE_ID:?Set RELEASE_ID in .env}
+    build:
+      context: ./webapp
+      dockerfile: dockerfile
+    restart: unless-stopped
+    ports: ["${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8080}:80"]
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging: *logging
+volumes:
+  mongo-data:
+secrets:
+  firebase:
+    file: ${FIREBASE_CREDENTIALS_FILE:?Set FIREBASE_CREDENTIALS_FILE in .env}

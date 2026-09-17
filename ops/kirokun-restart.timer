@@ -1,0 +1,7 @@
+[Unit]
+Description=KIROKUN weekly maintenance
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00 Asia/Tokyo
+Persistent=false
+[Install]
+WantedBy=timers.target
