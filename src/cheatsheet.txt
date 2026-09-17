@@ -2,7 +2,7 @@
 # MONGO_URL
 
 # Build image
-docker build -t jgranq/lta-api .
+docker build --platform linux/amd64 -t jgranq/lta-api .
 
 # Pack image
 docker save -o ./docker-lta-api-211108.tar jgranq/lta-api

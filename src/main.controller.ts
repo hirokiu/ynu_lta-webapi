@@ -45,8 +45,9 @@ export class Controller {
 
     this.app.route('/api/groups/:gid/assignments').get(async (req, res) => { this.surveyService.getAssignmentsOfGroup(req, res) }); 
 
+    // publish at after 30 seconds hiroki_u
     this.app.route('/api/users/:uid/surveys/:sid').post(async (req, res) => {
-      this.surveyService.scheduleSurveyForUserOnce(req, req.params.sid, req.params.uid, String(Math.floor((new Date()).getTime() / 1000)), res);
+      this.surveyService.scheduleSurveyForUserOnce(req, req.params.sid, req.params.uid, String(Math.floor((new Date()).getTime() / 1000) + 30 ), res);
     });
 
 

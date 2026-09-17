@@ -17,3 +17,6 @@ npm-debug.log
 cheatsheet
 
 .DS_Store
+
+# Preserve the dependency lock from the running baseline.
+!package-lock.json

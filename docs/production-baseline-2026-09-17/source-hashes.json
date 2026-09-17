@@ -1,0 +1,122 @@
+{
+  ".dockerignore": {
+    "production": "3daec312fe4304a4ad550b8e10ce88331315bf10f13a0e531cd67e108574bbd0",
+    "server": "3daec312fe4304a4ad550b8e10ce88331315bf10f13a0e531cd67e108574bbd0",
+    "mac-original": "3daec312fe4304a4ad550b8e10ce88331315bf10f13a0e531cd67e108574bbd0",
+    "mac-ynu": "3daec312fe4304a4ad550b8e10ce88331315bf10f13a0e531cd67e108574bbd0"
+  },
+  ".gitignore": {
+    "production": "15b2fbc19d528249a015e838f6645b214824d80ee871972cabefaeb52a37b19a",
+    "server": "15b2fbc19d528249a015e838f6645b214824d80ee871972cabefaeb52a37b19a",
+    "mac-original": "15b2fbc19d528249a015e838f6645b214824d80ee871972cabefaeb52a37b19a",
+    "mac-ynu": "15b2fbc19d528249a015e838f6645b214824d80ee871972cabefaeb52a37b19a"
+  },
+  "Dockerfile": {
+    "production": "07058f50759bc0288cd3cfe8bf51b42dd86f63d828c275a2fd75cf0440c0d52d",
+    "server": "c691a92dccf81ee9caea7a43242a857a2f8db00e8223677ef5e14275e78ddf21",
+    "mac-original": "07058f50759bc0288cd3cfe8bf51b42dd86f63d828c275a2fd75cf0440c0d52d",
+    "mac-ynu": "07058f50759bc0288cd3cfe8bf51b42dd86f63d828c275a2fd75cf0440c0d52d"
+  },
+  "docker-compose.yml": {
+    "production": "5190fe376b0a1cba1e29d8571a7d41a9921149e4f5bda3012845d393996fc8ca",
+    "server": "b14f8e1f9c608c9230077707af95e63834c5f05469ae2c691ecedf5919e62ec6",
+    "mac-original": "5190fe376b0a1cba1e29d8571a7d41a9921149e4f5bda3012845d393996fc8ca",
+    "mac-ynu": "5190fe376b0a1cba1e29d8571a7d41a9921149e4f5bda3012845d393996fc8ca"
+  },
+  "package-lock.json": {
+    "production": "22dee3bbd32470ca62e8e6d0ebdfeb52e507426914a0ef95739d4c09223ceefe",
+    "server": null,
+    "mac-original": null,
+    "mac-ynu": null
+  },
+  "package.json": {
+    "production": "b6e244413d38c7145239965e83fd17ce53d32a953e3b788b6281bf675c6d0971",
+    "server": "93593e521a734c8e1feceb1a52d54be4205ef9a5b87068127bba1e38843e56be",
+    "mac-original": "b6e244413d38c7145239965e83fd17ce53d32a953e3b788b6281bf675c6d0971",
+    "mac-ynu": "b6e244413d38c7145239965e83fd17ce53d32a953e3b788b6281bf675c6d0971"
+  },
+  "src/api.ts": {
+    "production": "00df4af88e891556103ee6ed5eb20d3f046968aaba383014f422b886909306cf",
+    "server": "b0036f279b58b469e82bf7c7871fe834c57b15a9e50f2eb410c36b559c0ea7be",
+    "mac-original": "00df4af88e891556103ee6ed5eb20d3f046968aaba383014f422b886909306cf",
+    "mac-ynu": "00df4af88e891556103ee6ed5eb20d3f046968aaba383014f422b886909306cf"
+  },
+  "src/app.ts": {
+    "production": "85bc4982346dd04c0e39919bf910dfeafdbbbd8ef811cec490115967cd9ffe27",
+    "server": "85bc4982346dd04c0e39919bf910dfeafdbbbd8ef811cec490115967cd9ffe27",
+    "mac-original": "85bc4982346dd04c0e39919bf910dfeafdbbbd8ef811cec490115967cd9ffe27",
+    "mac-ynu": "85bc4982346dd04c0e39919bf910dfeafdbbbd8ef811cec490115967cd9ffe27"
+  },
+  "src/cheatsheet.txt": {
+    "production": "7aa408dd5bba7a9408ada0c5f4c8398fce024f5b02c4baa4e8fd99b4c439ff29",
+    "server": "b60bdd22d10dc690469dceb03ae4224d898e5daf9123186da7903f455fa126b8",
+    "mac-original": "7aa408dd5bba7a9408ada0c5f4c8398fce024f5b02c4baa4e8fd99b4c439ff29",
+    "mac-ynu": "7aa408dd5bba7a9408ada0c5f4c8398fce024f5b02c4baa4e8fd99b4c439ff29"
+  },
+  "src/constants/exampleSurvey.json": {
+    "production": "3185f01a37a9c0568f7ae72075766f132737f49b8d2b99a294fadeadcc1c5db1",
+    "server": "3185f01a37a9c0568f7ae72075766f132737f49b8d2b99a294fadeadcc1c5db1",
+    "mac-original": "3185f01a37a9c0568f7ae72075766f132737f49b8d2b99a294fadeadcc1c5db1",
+    "mac-ynu": "3185f01a37a9c0568f7ae72075766f132737f49b8d2b99a294fadeadcc1c5db1"
+  },
+  "src/constants/surveyApi.constants.ts": {
+    "production": "f3eb84776da34e36e785ea67c03a85b27793f8a0ca48dae2b8ca24b3691ceb61",
+    "server": "a1eb683ba76fa09ace2591d42ff4f5ea00b3be332d94c23a1727e336f31ba27d",
+    "mac-original": "9df97727df68824d4c4ad85bdbdb95f1c738a6fda095b224274aaa254f2e8b1d",
+    "mac-ynu": "9df97727df68824d4c4ad85bdbdb95f1c738a6fda095b224274aaa254f2e8b1d"
+  },
+  "src/main.controller.ts": {
+    "production": "f4f7c77dfb937e277fb328b041907d966054497b3665dab15cb2835f7cd4552e",
+    "server": "43c8d7b6b3aa04f6d4ee83a566bd4c2e2d32aaf85fd33a6131c17e42fc15c793",
+    "mac-original": "43c8d7b6b3aa04f6d4ee83a566bd4c2e2d32aaf85fd33a6131c17e42fc15c793",
+    "mac-ynu": "db9562cb5f05a81b871b375d8fad88db829b5ee845b9701a279e62894674e765"
+  },
+  "src/models/survey.model.ts": {
+    "production": "42f85444a9cfcd4262b9333b6da9476723f0e36ea3cfee7a21fd7d2e49e05140",
+    "server": "42f85444a9cfcd4262b9333b6da9476723f0e36ea3cfee7a21fd7d2e49e05140",
+    "mac-original": "42f85444a9cfcd4262b9333b6da9476723f0e36ea3cfee7a21fd7d2e49e05140",
+    "mac-ynu": "42f85444a9cfcd4262b9333b6da9476723f0e36ea3cfee7a21fd7d2e49e05140"
+  },
+  "src/server.ts": {
+    "production": "2d54b3598987f10dc41316d9565248a097d154a7601b6c0f3e8dfac2834e46e8",
+    "server": "2d54b3598987f10dc41316d9565248a097d154a7601b6c0f3e8dfac2834e46e8",
+    "mac-original": "2d54b3598987f10dc41316d9565248a097d154a7601b6c0f3e8dfac2834e46e8",
+    "mac-ynu": "2d54b3598987f10dc41316d9565248a097d154a7601b6c0f3e8dfac2834e46e8"
+  },
+  "src/services/cloudMessage.service.ts": {
+    "production": "5a08a84efd006e679ab20e32c1d1091edcf0eded02170b0dd58e77ecdbaa9520",
+    "server": "5a08a84efd006e679ab20e32c1d1091edcf0eded02170b0dd58e77ecdbaa9520",
+    "mac-original": "5a08a84efd006e679ab20e32c1d1091edcf0eded02170b0dd58e77ecdbaa9520",
+    "mac-ynu": "5a08a84efd006e679ab20e32c1d1091edcf0eded02170b0dd58e77ecdbaa9520"
+  },
+  "src/services/firebaseAdmin.service.ts": {
+    "production": "f22e55e0faf80b5f40569e9e6c0427c75458cac1e637df3c5fe31050a35031e4",
+    "server": "b073d74242feabe38f9999ff176b03b11cb12b57bf8b39f6c9f1d534b0597b56",
+    "mac-original": "f22e55e0faf80b5f40569e9e6c0427c75458cac1e637df3c5fe31050a35031e4",
+    "mac-ynu": "f22e55e0faf80b5f40569e9e6c0427c75458cac1e637df3c5fe31050a35031e4"
+  },
+  "src/services/seedrandom.js": {
+    "production": "21aa0d7f9e1327233464d6333d0f63d9301539f9660a7090e035ebb2a1294b96",
+    "server": "21aa0d7f9e1327233464d6333d0f63d9301539f9660a7090e035ebb2a1294b96",
+    "mac-original": "21aa0d7f9e1327233464d6333d0f63d9301539f9660a7090e035ebb2a1294b96",
+    "mac-ynu": "21aa0d7f9e1327233464d6333d0f63d9301539f9660a7090e035ebb2a1294b96"
+  },
+  "src/services/surveyApi.service.ts": {
+    "production": "e46d4eab75aab391ecddbfb850bb05c8f4f2a0181c6f96b1dbc5a952faf28404",
+    "server": "c9cedf4d93775663e03cabbba88479cc74c3207993ae63cf152649726427ab9c",
+    "mac-original": "6fc41b0dd84a54ede13054988ed3be9d6e03afe0c5314fa878cafb9dd2b3d901",
+    "mac-ynu": "6fc41b0dd84a54ede13054988ed3be9d6e03afe0c5314fa878cafb9dd2b3d901"
+  },
+  "start.sh": {
+    "production": "0fc83f31efa6523211725745dfc163eae2d5cc992338d08a0371ce360c83cfe5",
+    "server": "0fc83f31efa6523211725745dfc163eae2d5cc992338d08a0371ce360c83cfe5",
+    "mac-original": "0fc83f31efa6523211725745dfc163eae2d5cc992338d08a0371ce360c83cfe5",
+    "mac-ynu": "0fc83f31efa6523211725745dfc163eae2d5cc992338d08a0371ce360c83cfe5"
+  },
+  "tsconfig.json": {
+    "production": "c23758e4188b3f57a9753addb102854af19c55a26b80c6794c199b03e2785af5",
+    "server": "348f21404ed94144680d35d47ee309362d7dd8145f52d6650ea3d4dfe872a62a",
+    "mac-original": "c23758e4188b3f57a9753addb102854af19c55a26b80c6794c199b03e2785af5",
+    "mac-ynu": "c23758e4188b3f57a9753addb102854af19c55a26b80c6794c199b03e2785af5"
+  }
+}

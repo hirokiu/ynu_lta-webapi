@@ -3,7 +3,7 @@ version: "3.1"
 services:
     mongodb:
         container_name: mongoDB
-        image: mongo:latest
+        image: mongo:4.2.24
         restart: always
         volumes:
           # - ./db/study1:/data/db
@@ -12,14 +12,14 @@ services:
           - MONGO_INITDB_DATABASE=Survey
         ports:
           - 27017:27017
-    # api:
-    #     container_name: lta-api
-    #     image: jgranq/lta-api:latest
-    #     depends_on:
-    #       - 'mongodb'
-    #     restart: always
-    #     ports:
-    #       - 9001:9001
+    api:
+        container_name: lta-api
+        image: hiroki_u/lta-api:latest
+        depends_on:
+          - 'mongodb'
+        restart: always
+        ports:
+          - 9001:9001
     # webapp:
     #     container_name: lta-webapp
     #     image: jgranq/lta-webapp:latest

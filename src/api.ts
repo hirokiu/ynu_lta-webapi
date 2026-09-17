@@ -1,4 +1,4 @@
-import express, { Application } from 'express';
+import express, { Application, Request, Response } from 'express';
 import { Controller } from './main.controller';
 import { MONGO_URL, NOTIFICATION_CHECK_INTERVAL_MS } from './constants/surveyApi.constants';
 import bodyParser from 'body-parser';

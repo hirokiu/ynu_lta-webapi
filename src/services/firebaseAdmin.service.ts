@@ -1,10 +1,11 @@
 var admin = require("firebase-admin");
 
-var serviceAccount = require("../constants/lang-track-app-firebase-adminsdk-862cg-a80a5de2fc.json");
+// var serviceAccount = require("../constants/ynu-lta-dev-firebase-adminsdk-uidom-dfc2d61445.json");
+var serviceAccount = require("../constants/ynu-lta-dev-firebase-adminsdk-uidom-bb55db26c5.json");
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    databaseURL: "https://lang-track-app.firebaseio.com"
+    databaseURL: "https://ynu-lta-dev-default-rtdb.firebaseio.com/"
 })
 
 export default admin;

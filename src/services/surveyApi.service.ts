@@ -683,7 +683,7 @@ export class SurveyService {
             }
 
             var daysInSchedule: number = 0;
-            const userTz = "Europe/Stockholm";
+            const userTz = "Asia/Tokyo";
             for (var m = moment.tz(startYMD, userTz); m.diff(moment.tz(endYMD, userTz), 'days') <= 0; m.add(1, 'days')) {
                 daysInSchedule++;
                 SurveyService.dbgMsg("Scheduling for " + userTz + " date " + m.format('YYYY-MM-DD'));
@@ -736,7 +736,7 @@ export class SurveyService {
                 SurveyService.dbgMsg("Scheduling for date " + m.format('YYYY-MM-DD'));
                 for (var i = 0; i < hours.length; i = i + 1) {
                     var h = hours[i];
-                    var publishAtMoment = moment.tz(m.format('YYYY-MM-DD') + " " + h, "Europe/Stockholm"); //TODO: now assuming admin is in sthlm
+                    var publishAtMoment = moment.tz(m.format('YYYY-MM-DD') + " " + h, "Asia/Tokyo"); //TODO: now assuming admin is in sthlm
                     SurveyService.dbgMsg("publishAtMoment is " + publishAtMoment);
 
 
@@ -1181,13 +1181,14 @@ export class SurveyService {
     //                                         }            
     // }
 
+/* Geminiのコードで差し替え
     private static getDatasetsOfAssignments(assignments: any) {
 
         let flattened = new Array();
 
         assignments.forEach((a: any) => {
 
-            var dynJmesPath = JMESPATH_dataset;
+	    var dynJmesPath = JMESPATH_dataset;
 
             if (a.dataset) {
                 a.dataset.answers.forEach((answer: any) => {
@@ -1218,11 +1219,109 @@ export class SurveyService {
                 flattened.push(flatA);
             } else {
                 console.log("assignment " + a._id + " does not have a dataset.")
-            }
+	        }
         });
 
         return flattened;
     }
+*/
+
+
+//console.log(`Debug: index=${answer.index}, type=${answer.type}, data=`, JSON.stringify(answer));
+private static getDatasetsOfAssignments(assignments: any) {
+    let flattened = new Array();
+    let allKeys = new Set<string>();
+
+    // 1. データの収集
+    assignments.forEach((a: any) => {
+        if (!a.dataset || !a.dataset.answers || a.dataset.answers.length === 0) return;
+
+        let flatA: any = {};
+        
+        // 基本情報（ソート用に一時的なキーを意識せず追加）
+        flatA['回答者ID'] = a.userId || a.user || (a._id ? a._id.toString() : "不明");
+        flatA['回答時刻'] = "";
+        //if (a.date || a.createdAt) {
+        if (a.lastOpenedAt || a.updatedAt) {
+            //const date = new Date(a.date || a.updatedAt);
+            const date = new Date(a.lastOpenedAt || a.updatedAt);
+            date.setHours(date.getHours() + 9);
+            flatA['回答時刻'] = date.toISOString().replace('T', ' ').substring(0, 19);
+        }
+        flatA['回答設問数'] = a.dataset.answers.length;
+
+        // 設問回答の処理
+        const sortedAnswers = [...a.dataset.answers].sort((low, high) => low.index - high.index);
+        sortedAnswers.forEach((answer: any) => {
+            const indexStr = SurveyService.pad(answer.index, 2);
+            const key = `q${indexStr}`;
+
+console.log(`Debug: index=${answer.index}, type=${answer.type}, data=`, JSON.stringify(answer));
+
+            let val = "";
+            if (answer.stringValue !== undefined && answer.stringValue !== null && answer.stringValue !== "") {
+                val = String(answer.stringValue);
+            } else if (answer.intValue !== undefined && answer.intValue !== null) {
+                val = String(answer.intValue);
+            }
+
+            if (answer.type === "duration") {
+                const totalSeconds = answer.intValue || 0;
+                const minutes = (totalSeconds / 60).toFixed(2);
+                flatA[key] = `${minutes} (${totalSeconds}s)`; 
+            } else if (answer.type === "multi") {
+                const mv = answer.multiValue || [];
+                const multiValueString = Array.isArray(mv) ? mv.join(',') : String(mv);
+                flatA[key] = multiValueString;
+                
+                if (multiValueString !== "" && multiValueString !== "[]") {
+                    multiValueString.split(',').forEach((v: any) => {
+                        let vt = String(v).trim();
+                        if (vt !== "") {
+                            const subKey = `${key}.${vt}`;
+                            flatA[subKey] = '1';
+                            allKeys.add(subKey); 
+                        }
+                    });
+                }
+            } else {
+                flatA[key] = val;
+            }
+            allKeys.add(key); 
+        });
+
+        Object.keys(flatA).forEach(k => allKeys.add(k));
+        flattened.push(flatA);
+    });
+
+    // 2. カラム名のソート（ヘッダー順の決定）
+    // 基本項目を最優先し、それ以外（qXX）をアルファベット順に並べる
+    const priorityKeys = ['回答者ID', '回答時刻', '回答設問数'];
+    const sortedKeys = Array.from(allKeys).sort((a, b) => {
+        // 固定項目を左に寄せる
+        const aIndex = priorityKeys.indexOf(a);
+        const bIndex = priorityKeys.indexOf(b);
+        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+        if (aIndex !== -1) return -1;
+        if (bIndex !== -1) return 1;
+        
+        // それ以外は文字列として比較 (q01, q01.0, q02... の順になる)
+        return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    // 3. 全行の正規化と、ソート済みキーに基づくオブジェクトの再構成
+    const finalFlattened = flattened.map(row => {
+        let sortedRow: any = {};
+        sortedKeys.forEach(key => {
+            // 値がない場合は空文字、ある場合はその値をセット
+            sortedRow[key] = (row[key] !== undefined && row[key] !== null) ? row[key] : "";
+        });
+        return sortedRow;
+    });
+
+    return finalFlattened;
+}
+
 
     public getAllDatasetsOfSurvey(req: Request, res: Response) {
         SurveyService.dbgReq(req);
@@ -1573,5 +1672,5 @@ function getPublishAtForAssignmentBasedOnUser(publishFrom: any, publishTo: any, 
 
     let minuteDiff = moment(publishTo).diff(moment(publishFrom), "minutes", true);
     var skew = SurveyService.pseudorandomSkew(assignmentId, userId, minuteDiff);
-    return moment(publishFrom, "Europe/Stockholm").add(skew, "m");
+    return moment(publishFrom, "Asia/Tokyo").add(skew, "m");
 }
