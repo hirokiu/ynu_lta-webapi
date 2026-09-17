@@ -19,7 +19,7 @@ import {
 } from "../constants/surveyApi.constants"
 
 import admin from "./firebaseAdmin.service";
-import { pageOptions, literalSearch, dateRange } from "../utils/query";
+import { pageOptions, literalSearch, dateRange, exportOptions } from "../utils/query";
 import Rand, { PRNG } from 'rand-seed';
 
 export const getAuthToken = (req: Request, res: Response, callback: (ah: any) => void) => {
@@ -1393,19 +1393,43 @@ private static getDatasetsOfAssignments(assignments: any) {
         });
     }
 
+    public getSurveyResultsPage(req: Request, res: Response) {
+        checkIfAuthenticatedAdmin(req, res, async () => {
+            let paging: any;
+            try {
+                paging = pageOptions(req.query);
+                if (!/^[a-f0-9]{24}$/i.test(req.params.sid)) throw new global.Error("Invalid survey");
+            } catch (error) { res.status(400).json({ error: "Invalid filters" }); return; }
+            try {
+                const ids = await Assignment.find({ "survey._id": req.params.sid }).select("_id").lean().exec();
+                const records: any[] = await AssignmentResults.find({ assignment: { $in: ids.map((a: any) => a._id) }, "dataset.answers.0": { $exists: true } })
+                    .select("userId lastOpenedAt updatedAt dataset.answers.index")
+                    .sort({ updatedAt: -1, _id: -1 }).skip(paging.skip).limit(paging.limit + 1).lean().maxTimeMS(15000).exec();
+                res.json({ page: paging.page, limit: paging.limit, hasMore: records.length > paging.limit,
+                    items: records.slice(0, paging.limit).map(record => ({ _id: record._id, userId: record.userId,
+                        answeredAt: record.lastOpenedAt || record.updatedAt, answerCount: record.dataset.answers.length })) });
+            } catch (error) { res.status(500).json({ error: "Could not load answers" }); }
+        });
+    }
+
     public getAllDatasetsOfSurvey_ar(req: Request, res: Response, format: String) {
         checkIfAuthenticatedAdmin(req, res, async () => {
-            let range: any;
-            try { range = dateRange(req.query.from, req.query.to); }
-            catch (error) { res.status(400).json({ error: "Invalid date range" }); return; }
+            let range: any, selectedIds: string[] | undefined;
+            try {
+                if (!/^[a-f0-9]{24}$/i.test(req.params.sid) || !['csv', 'json'].includes(String(format))) throw new global.Error("Invalid export");
+                const options = exportOptions(req.method === 'POST' ? req.body : req.query, req.method === 'POST');
+                range = options.range; selectedIds = options.selectedIds;
+            } catch (error) { res.status(400).json({ error: "Invalid export options" }); return; }
             try {
                 // Only IDs are needed for the join; never load embedded questionnaires here.
                 const ids = await Assignment.find({ "survey._id": req.params.sid }).select("_id").lean().exec();
                 const filter: any = { assignment: { $in: ids.map((a: any) => a._id) }, "dataset.answers.0": { $exists: true } };
+                if (selectedIds) filter._id = { $in: selectedIds };
                 // Same timestamp precedence as the production CSV formatter.
                 if (range) filter.$or = [{ lastOpenedAt: range }, { lastOpenedAt: null, updatedAt: range }];
                 const results = await AssignmentResults.find(filter)
                     .select("userId user dataset lastOpenedAt updatedAt").limit(10001).lean().maxTimeMS(60000).exec();
+                if (selectedIds && results.length !== selectedIds.length) { res.status(422).json({ error: "Selected answers are no longer available in this Survey" }); return; }
                 if (results.length > 10000) { res.status(413).json({ error: "More than 10000 results; select a shorter date range" }); return; }
                 const rows = SurveyService.getDatasetsOfAssignments(results);
                 if (format !== "csv") { res.json(rows); return; }

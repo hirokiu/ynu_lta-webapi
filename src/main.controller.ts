@@ -92,6 +92,8 @@ export class Controller {
     this.app.route('/api/surveys/:sid/assignments').get(this.surveyService.getAssignmentsOfSurvey);
     this.app.route('/api/surveys/:sid/datasets').get(this.surveyService.getAllDatasetsOfSurvey);
     this.app.route('/api/surveys/:sid/datasets/csv').get(this.surveyService.getAllDatasetsOfSurveyCSV);
+    this.app.get('/api/surveys/:sid/results', (req, res) => this.surveyService.getSurveyResultsPage(req, res));
+    this.app.post('/api/surveys/:sid/datasets/results/export', (req, res) => this.surveyService.getAllDatasetsOfSurvey_ar(req, res, req.body && req.body.format));
     this.app.route('/api/surveys/:sid/datasets/results/json').get(async (req, res) => { this.surveyService.getAllDatasetsOfSurvey_ar(req, res, "json") } );
     this.app.route('/api/surveys/:sid/datasets/results/csv').get(async (req, res) => { this.surveyService.getAllDatasetsOfSurvey_ar(req, res, "csv") } );
 

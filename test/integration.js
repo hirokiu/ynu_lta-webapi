@@ -22,10 +22,14 @@ async function main() {
   {assignment:assignments[0]._id,userId:'hiroki_u',lastOpenedAt:new Date('2026-01-02T00:00:00Z'),dataset:{answers:[{index:1,type:'multi',multiValue:[1,2]},{index:2,type:'duration',intValue:90}]}},
   {assignment:assignments[0]._id,userId:'other',lastOpenedAt:new Date('2026-01-03T00:00:00Z'),dataset:{answers:[{index:1,type:'multi',multiValue:[2]}]}}
  ];
- await AssignmentResults.insertMany(results);
- const app=express();new Controller(app);const server=app.listen(0,'127.0.0.1');
+ const savedResults = await AssignmentResults.insertMany(results);
+ const app=express();app.use(express.json());new Controller(app);const server=app.listen(0,'127.0.0.1');
  await new Promise(resolve=>server.once('listening',resolve));
- const request=(path,token='test-only')=>new Promise((resolve,reject)=>http.get({hostname:'127.0.0.1',port:server.address().port,path,headers:{token}},res=>{let text='';res.on('data',c=>text+=c);res.on('end',()=>resolve({status:res.statusCode,text,json:()=>JSON.parse(text)}));}).on('error',reject));
+ const request=(path,token='test-only',data)=>new Promise((resolve,reject)=>{
+  const body=data===undefined?undefined:JSON.stringify(data);
+  const req=http.request({hostname:'127.0.0.1',port:server.address().port,path,method:body?'POST':'GET',headers:{token,'Content-Type':'application/json'}},res=>{let text='';res.on('data',c=>text+=c);res.on('end',()=>resolve({status:res.statusCode,text,json:()=>JSON.parse(text)}));});
+  req.on('error',reject);req.end(body);
+ });
  try {
   assert.equal((await request('/api/admin/assignments','bad')).status,401);
   let first=(await request('/api/admin/assignments?limit=50')).json();
@@ -39,6 +43,23 @@ async function main() {
   assert.equal(csv.status,200,csv.text);assert(csv.text.includes('回答者ID'));assert(csv.text.includes('2026-01-02 09:00:00'));assert(csv.text.includes('1.50 (90s)'));assert(!csv.text.includes('other'));
   assert.equal((await request(`/api/surveys/${survey._id}/datasets/results/csv?from=bad`)).status,400);
   const mine=(await request('/api/users/hiroki_u/allassignments')).json();assert.equal(mine.length,110);assert.equal(mine.find(a=>a._id===String(assignments[0]._id)).dataset.answers.length,2);
+  for(const size of [10,20,50,100]) assert.equal((await request('/api/admin/assignments?limit='+size)).json().items.length,size);
+  const resultPage=(await request(`/api/surveys/${survey._id}/results?limit=1`)).json();
+  assert.equal(resultPage.items.length,1);assert(resultPage.hasMore);assert(!resultPage.items[0].dataset);
+  assert.equal((await request(`/api/surveys/${survey._id}/results?limit=1`,'bad')).status,401);
+  const exportPath=`/api/surveys/${survey._id}/datasets/results/export`;
+  const one=await request(exportPath,'test-only',{scope:'selected',format:'json',ids:[String(savedResults[0]._id)]});
+  assert.equal(one.status,200);assert.equal(one.json().length,1);assert.equal(one.json()[0]['回答者ID'],'hiroki_u');
+  assert.equal((await request(exportPath,'test-only',{scope:'selected',format:'json',ids:[]})).status,400);
+  assert.equal((await request(exportPath,'test-only',{scope:'all',format:'json',ids:[String(savedResults[0]._id)]})).status,400);
+  assert.equal((await request(exportPath,'test-only',{scope:'period',format:'json'})).status,400);
+  assert.equal((await request(exportPath,'test-only',{scope:'all',format:'json'})).json().length,2);
+  assert.equal((await request(exportPath,'test-only',{scope:'period',format:'json',from:'2026-01-02T09:00:00.000+09:00',to:'2026-01-02T23:59:59.999+09:00'})).json().length,1);
+  const foreignSurvey=await Survey.create({name:'Other survey'});
+  const foreignAssignment=await Assignment.create({survey:foreignSurvey.toObject()});
+  const foreignResult=await AssignmentResults.create({assignment:foreignAssignment._id,userId:'foreign',dataset:{answers:[{index:1,type:'single',intValue:1}]}});
+  assert.equal((await request(exportPath,'test-only',{scope:'selected',format:'json',ids:[String(foreignResult._id)]})).status,422);
+  assert.equal((await request(exportPath,'test-only',{scope:'all',format:'json'})).json().length,2);
   // Verify formatter parity against immutable recorded baseline when supplied.
   if(process.env.BASELINE_SERVICE){
    const filename=require.resolve('../src/services/surveyApi.service');

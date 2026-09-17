@@ -90,3 +90,11 @@ TLS・ドメイン・既存モバイルの接続先（旧ホスト名も含む�
 参考： [Docker Composeの本番運用](https://docs.docker.com/compose/how-tos/production/)、[MongoDB mongodump](https://www.mongodb.com/docs/database-tools/mongodump/)。
 
 設定例：毎週は`BACKUP_ON_CALENDAR="Sun *-*-* 03:00:00 Asia/Tokyo"`、毎月は`"*-*-01 03:00:00 Asia/Tokyo"`、正確な10日間隔は`BACKUP_INTERVAL="10d"`（時刻固定と別方式）。保存日数だけの変更は次回から反映され、タイマーの再インストールは不要。時刻・取得間隔を変えた場合はインストールスクリプトを再実行する。
+
+## 回答の選択出力と表示件数（追加）
+
+管理一覧・配信一覧の表示件数を10/20/50/100から変更可能にした。Survey詳細の回答出力欄を独立したパネルにし、全員・全期間／日本時間の期間指定／回答一覧のチェック選択に分けた。
+
+新しい管理者専用API：`GET /api/surveys/:sid/results`（回答本文を含めない選択用一覧）、`POST /api/surveys/:sid/datasets/results/export`（読み取り処理）。POSTはscopeとformatを明示し、selectedでは1～1,000件の回答IDが必須。空の選択を全件出力として解釈しない。他のSurveyに属するIDや削除済みIDは422で全体を拒否する。allでは期間・IDを受け付けず、periodは開始・終了日時が必須。既存GET形式は互換性のため維持。
+
+テスト：4種類のページサイズ、回答一覧の認証・本文非公開、選択出力、空選択・不正条件の拒否、別Surveyの混入拒否、期間境界、CSV互換性、UIのページをまたぐ選択・出力状態・古いリンク破棄を確認。

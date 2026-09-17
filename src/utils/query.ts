@@ -18,3 +18,19 @@ export function dateRange(from: any, to: any) {
     if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start > end) throw new Error("Invalid date range");
     return { $gte: start, $lte: end };
 }
+
+export function exportOptions(input: any, explicitScope: boolean) {
+    if (explicitScope && !['all', 'period', 'selected'].includes(input.scope)) throw new Error('Invalid export scope');
+    const range = dateRange(input.from, input.to);
+    let selectedIds: string[] | undefined;
+    if (explicitScope) {
+        if (input.scope === 'period' && !range) throw new Error('Dates required');
+        if (input.scope !== 'period' && range) throw new Error('Unexpected dates');
+        if (input.scope === 'selected') {
+            if (!Array.isArray(input.ids) || input.ids.length < 1 || input.ids.length > 1000 ||
+                input.ids.some((id: any) => typeof id !== 'string' || !/^[a-f0-9]{24}$/i.test(id))) throw new Error('Invalid selection');
+            selectedIds = Array.from(new Set<string>(input.ids));
+        } else if (input.ids !== undefined) throw new Error('Unexpected selection');
+    }
+    return { range, selectedIds };
+}
