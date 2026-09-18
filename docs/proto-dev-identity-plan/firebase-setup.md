@@ -25,3 +25,11 @@ protoもFirebaseコンソールから実際に使用するWebアプリ設定を�
 5. dev用iOS/Androidの登録は新Bundle ID/applicationIdの準備後に行う。ソーシャルログインの各登録は後続工程。
 
 proto配置先は新サーバーの `/home/hiroki_u/kirokun-proto`。既存stagingとは別checkout/Compose名/DBボリューム。管理ユーザーが作成できる場所を使い、sudoによる既存設定変更は避けた。
+
+## dev設定受領後（2026-09-18）
+
+projectId=kirokun-dev、Web appId=1:1058257017339:web:309880b99105dd6732535e。Web公開設定は新サーバー~/kirokun-dev/.envに保存。Googleプロバイダー有効化は利用者申告。独立DBを準備したが、API用秘密鍵は未配置。GoogleログインUIとFirebase UIDに基づく管理者権限は未実装。プロバイダーを有効化しただけではユーザー作成・管理者権限付与とはならない。
+
+鍵の配置：Firebaseコンソールのkirokun-dev → プロジェクト設定 → サービスアカウントから秘密鍵を取得。チャットへ貼らず、SSH/SCPでuva.alchembright.comの /opt/kirokun-secrets/dev/firebase.json へ配置。親ディレクトリは0700、ファイルはコンテナー実行ユーザーが読み取れる権限が必要（現在の構成では親0700内のファイル0644、コンテナーへ読取専用マウント）。proto用鍵を流用しない。次回API起動前にproject_idのみを照合し、秘密部分は出力しない。
+
+上松のUID：Authenticationのユーザー一覧に対象Googleアカウントが存在するなら、そのUIDを確認する。まだなければGoogleログイン実装後に本人ログインで登録し、そのUIDに管理者権限を限定する。Web上で誰でも初回ログインすれば管理者になる方式は使わない。
