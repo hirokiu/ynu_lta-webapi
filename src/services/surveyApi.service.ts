@@ -10,7 +10,6 @@ var jmespath = require('jmespath');
 import { Survey, Assignment, AssignmentResults, Dataset, User, Group } from "../models/survey.model";
 
 import {
-    ADMIN_USERNAMES,
     PING_MESSAGE,
     JMESPATH_dataset,
     NOTIFY_PUBLISH_SINCE_MINUTES,
@@ -20,6 +19,7 @@ import {
 
 import admin from "./firebaseAdmin.service";
 import { pageOptions, literalSearch, dateRange, exportOptions } from "../utils/query";
+import { resolveIdentity } from "../utils/identity";
 import Rand, { PRNG } from 'rand-seed';
 
 export const getAuthToken = (req: Request, res: Response, callback: (ah: any) => void) => {
@@ -34,11 +34,12 @@ export const checkIfAuthenticatedAdmin = (req: Request, res: Response, callback:
         try {
             const userInfo = await admin
                 .auth()
-                .verifyIdToken(ah);
+                .verifyIdToken(ah, process.env.AUTH_MODE === "uid");
 
-            var verifiedUserId = userInfo.email.replace("@humlablu.com", "");
+            const identity = resolveIdentity(userInfo);
+            const verifiedUserId = identity.userId;
 
-            if (!ADMIN_USERNAMES.includes(verifiedUserId)) {
+            if (!identity.isAdmin) {
                 SurveyService.dbgMsg("Unauthorized: " + verifiedUserId + " is not admin.");
                 return res.status(401).send({ error: 'You are not authorized to make this request' });
             }
@@ -57,11 +58,12 @@ export const checkIfAuthenticatedUserIdOrAdmin = (userId: String, req: Request, 
         try {
             const userInfo = await admin
                 .auth()
-                .verifyIdToken(ah);
+                .verifyIdToken(ah, process.env.AUTH_MODE === "uid");
 
-            var verifiedUserId = userInfo.email.replace("@humlablu.com", "");
+            const identity = resolveIdentity(userInfo);
+            const verifiedUserId = identity.userId;
 
-            if (verifiedUserId != userId && !ADMIN_USERNAMES.includes(verifiedUserId)) {
+            if (verifiedUserId != userId && !identity.isAdmin) {
                 SurveyService.dbgMsg("Unauthorized: " + verifiedUserId + " imposing as " + userId);
                 return res.status(401).send({ error: 'You are not authorized to make this request' });
             }
@@ -79,9 +81,10 @@ export const getAuthenticatedUserId = (req: Request, res: Response, callback: (u
         try {
             const userInfo = await admin
                 .auth()
-                .verifyIdToken(ah);
+                .verifyIdToken(ah, process.env.AUTH_MODE === "uid");
 
-            var verifiedUserId = userInfo.email.replace("@humlablu.com", "");
+            const identity = resolveIdentity(userInfo);
+            const verifiedUserId = identity.userId;
 
             return callback(verifiedUserId);
         } catch (e) {
