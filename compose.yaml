@@ -22,6 +22,7 @@ services:
       MONGO_URL: mongodb://mongodb:27017/Survey
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase
       NOTIFICATIONS_ENABLED: ${NOTIFICATIONS_ENABLED:-false}
+      ASSIGNMENT_PREPARATION_ENABLED: ${ASSIGNMENT_PREPARATION_ENABLED:-false}
       TZ: UTC
     secrets: [firebase]
     depends_on:

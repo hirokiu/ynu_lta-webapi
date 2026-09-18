@@ -1,5 +1,7 @@
 import admin from "./firebaseAdmin.service";
 
+import { notificationsEnabled } from "../utils/runtimeFlags";
+
 export class CloudMessageService {
 
     public sendMessage(
@@ -7,6 +9,8 @@ export class CloudMessageService {
         title: String = "Hey there!",
         body: String = "This is a notification from the Lang-Track-App."
     ) {
+
+        if (!notificationsEnabled()) return;
 
         var message = {
             token: registrationToken,

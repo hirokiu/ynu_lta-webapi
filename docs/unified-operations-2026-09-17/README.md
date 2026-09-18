@@ -98,3 +98,7 @@ TLS・ドメイン・既存モバイルの接続先（旧ホスト名も含む�
 新しい管理者専用API：`GET /api/surveys/:sid/results`（回答本文を含めない選択用一覧）、`POST /api/surveys/:sid/datasets/results/export`（読み取り処理）。POSTはscopeとformatを明示し、selectedでは1～1,000件の回答IDが必須。空の選択を全件出力として解釈しない。他のSurveyに属するIDや削除済みIDは422で全体を拒否する。allでは期間・IDを受け付けず、periodは開始・終了日時が必須。既存GET形式は互換性のため維持。
 
 テスト：4種類のページサイズ、回答一覧の認証・本文非公開、選択出力、空選択・不正条件の拒否、別Surveyの混入拒否、期間境界、CSV互換性、UIのページをまたぐ選択・出力状態・古いリンク破棄を確認。
+
+## 配信準備と通知の独立制御（未デプロイ）
+
+`ASSIGNMENT_PREPARATION_ENABLED`で回答用データの準備、`NOTIFICATIONS_ENABLED`で通知検索/送信を制御する。Compose既定値は両方false。通知なしの回答試験は前者true・後者false。通知関数にも禁止判定を置く。既存環境へは反映していない。直接起動で前者が未指定の場合は従来同様、後者に追従する。protoの実運用で準備と通知を使う場合は双方を明示的にtrueにする。

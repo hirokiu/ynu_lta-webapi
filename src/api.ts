@@ -8,6 +8,8 @@ import path from 'path';
 import { CloudMessageService } from './services/cloudMessage.service';
 import { SurveyService } from './services/surveyApi.service';
 
+import { notificationsEnabled, preparationEnabled } from "./utils/runtimeFlags";
+
 class Api {
 
     public api: Application;
@@ -27,7 +29,7 @@ class Api {
 
         this.cloudMessageService = new CloudMessageService();
         this.surveyService = new SurveyService();
-        if (process.env.NOTIFICATIONS_ENABLED !== "false") this.startBackgroundRunner();
+        if (preparationEnabled() || notificationsEnabled()) this.startBackgroundRunner();
     }
 
     private setConfig() {
@@ -53,7 +55,8 @@ class Api {
     }
 
     private notifyAssignments() {
-        this.surveyService.CreateImpendingResultObjects();
+        if (preparationEnabled()) this.surveyService.CreateImpendingResultObjects();
+        if (!notificationsEnabled()) return;
 
         this.surveyService.FindRegistrationTokensForNotification(
             (deviceRegistrationToken: string, title: String, body: String) => {
