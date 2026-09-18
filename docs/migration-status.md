@@ -23,3 +23,11 @@
 ## 確認してもらう項目
 
 従来ID/パスワードでログイン、Survey一覧10/20/50/100件、既存Surveyの設問テンプレート保存→新規読込→編集→保存、回答の全件/期間/選択出力、生成中表示。アプリ通知・新しい回答の収集は今回の確認範囲に含めない。
+
+## アプリ実装の並行作業（2026-09-18）
+
+利用者が共同研究者への確認依頼を送信済み。認証方針の回答待ちと並行して、両アプリにproto固定接続用ビルドを追加した。iOS Kirokun-Proto（ProtoDebug/ProtoRelease）、Android proto flavor。従来ビルドはFirebase Realtime Databaseのurl/stagingUrlを使用し続ける。共有Firebaseの接続先は変更しない。
+
+iOSシミュレータービルド成功・生成plist確認、Android proto/legacyビルドとproto単体テスト成功。両GitHubリポジトリのrefactor/environment-routingブランチに記録。元のMacリポジトリは変更せず、特にiOSの既存未コミットscheme変更を保持した。
+
+実機ログイン/回答送信/通知/配布は未実施。protoサーバーは現時点で既存3名限定・配信準備/通知停止。一般回答者へ配布する前に全既存利用者のUID対応と端末登録・回答処理・通知を検証する。上松専用dev版の別アプリID/Firebaseモバイル登録は後続。新ドメインだけでアプリ更新が必須という過去の説明を補足：現行ソースはFirebaseからURLを取得するため、実配布版の照合と互換性検証後なら共有URL切替による移行も検討可能。ただし今回はその値を変更していない。
