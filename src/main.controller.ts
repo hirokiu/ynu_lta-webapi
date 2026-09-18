@@ -1,5 +1,5 @@
 import { Application } from 'express';
-import { SurveyService } from './services/surveyApi.service';
+import { getAuthenticatedUserId, SurveyService } from './services/surveyApi.service';
 import { CloudMessageService } from './services/cloudMessage.service';
 
 export class Controller {
@@ -13,6 +13,12 @@ export class Controller {
   }
 
   public routes() {
+
+    // Resolve the authenticated account without deriving a user ID from its email.
+    this.app.get('/api/me', (req, res) => {
+      res.set('Cache-Control', 'no-store');
+      getAuthenticatedUserId(req, res, userId => res.json({ userId }));
+    });
 
     /* misc */
     this.app.route('/api/ping').get(this.surveyService.getPingMessage);
