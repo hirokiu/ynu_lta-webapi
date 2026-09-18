@@ -1,5 +1,5 @@
 import { Application } from 'express';
-import { SurveyService } from './services/surveyApi.service';
+import { getAuthenticatedUserId, SurveyService } from './services/surveyApi.service';
 import { CloudMessageService } from './services/cloudMessage.service';
 
 export class Controller {
@@ -14,9 +14,18 @@ export class Controller {
 
   public routes() {
 
+    // Resolve the authenticated account without deriving a user ID from its email.
+    this.app.get('/api/me', (req, res) => {
+      res.set('Cache-Control', 'no-store');
+      getAuthenticatedUserId(req, res, userId => res.json({ userId }));
+    });
+
     /* misc */
     this.app.route('/api/ping').get(this.surveyService.getPingMessage);
     this.app.route('/api/survey').get(this.surveyService.exampleSurvey);
+
+    this.app.get('/api/admin/assignments', (req, res) => this.surveyService.getAdminPage(req, res, "assignments"));
+    this.app.get('/api/admin/surveys', (req, res) => this.surveyService.getAdminPage(req, res, "surveys"));
 
     /* survey */
     this.app.route('/api/surveys').get(this.surveyService.getAllSurveys);
@@ -89,6 +98,8 @@ export class Controller {
     this.app.route('/api/surveys/:sid/assignments').get(this.surveyService.getAssignmentsOfSurvey);
     this.app.route('/api/surveys/:sid/datasets').get(this.surveyService.getAllDatasetsOfSurvey);
     this.app.route('/api/surveys/:sid/datasets/csv').get(this.surveyService.getAllDatasetsOfSurveyCSV);
+    this.app.get('/api/surveys/:sid/results', (req, res) => this.surveyService.getSurveyResultsPage(req, res));
+    this.app.post('/api/surveys/:sid/datasets/results/export', (req, res) => this.surveyService.getAllDatasetsOfSurvey_ar(req, res, req.body && req.body.format));
     this.app.route('/api/surveys/:sid/datasets/results/json').get(async (req, res) => { this.surveyService.getAllDatasetsOfSurvey_ar(req, res, "json") } );
     this.app.route('/api/surveys/:sid/datasets/results/csv').get(async (req, res) => { this.surveyService.getAllDatasetsOfSurvey_ar(req, res, "csv") } );
 

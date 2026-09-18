@@ -1,0 +1,3 @@
+[submodule "webapp"]
+	url = git@github.com:hirokiu/ynu_lta-webapp.git
+	path = webapp

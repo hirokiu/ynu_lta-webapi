@@ -1,0 +1,9 @@
+[Unit]
+Description=KIROKUN backup and weekly container restart
+Requires=docker.service
+After=docker.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/kirokun
+ExecStart=/opt/kirokun/ops/manage.sh restart
+TimeoutStartSec=2h

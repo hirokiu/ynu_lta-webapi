@@ -1,0 +1,9 @@
+# 環境別設定の準備
+
+proto/devのCompose project名・localhostポート・資格情報パスを分ける設定例。実環境はまだ作成していない。既存staging(8080)は移行検証コピーとして保持する。
+
+環境ごとに別checkoutと.envを用意する。同一checkoutの.envを切替えて共用しない。Compose名によりMongoボリュームは独立する。backups、ops/state、スケジュール設定もcheckout別にする。systemdタイマー/サービスも環境別名とWorkingDirectoryが必要で、現行install-timers.shを複数環境へ無変更で実行しない。
+
+protoは保全済み旧データを新ボリュームへ復元し、devは空DBから作る。WebのFirebase設定は現在固定なので、別資格情報を指定するだけでdev分離は完成しない。次段階でWeb/iOS/Android/APIのFirebase設定とUID認証を揃える。APIのFirebase databaseURLも現状固定。
+
+公開入口は最終的にproto→8081、dev→8082。現在のedge設定はdev→8080という旧確認案なので、適切な本人/所属確認と画面の環境表示を整備し、設定を修正するまで起動しない。既存環境とDNSの切替は行わない。

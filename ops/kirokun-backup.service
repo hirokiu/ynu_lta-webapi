@@ -1,0 +1,9 @@
+[Unit]
+Description=KIROKUN consistent MongoDB backup
+Requires=docker.service
+After=docker.service
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/kirokun
+ExecStart=/opt/kirokun/ops/manage.sh backup
+TimeoutStartSec=2h

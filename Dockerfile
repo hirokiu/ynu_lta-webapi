@@ -1,28 +1,15 @@
-FROM node:12
-
-RUN echo "deb http://archive.debian.org/debian/ stretch main" > /etc/apt/sources.list \
-    && echo "deb http://archive.debian.org/debian-security stretch/updates main" >> /etc/apt/sources.list
-RUN apt-get update && apt-get install -y vim
-
-WORKDIR /usr/src/app
-
+FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS build
+WORKDIR /app
 COPY package*.json ./
-# COPY tsconfig.json ./
-
-RUN npm install
-# If you are building your code for production
-# RUN npm ci --only=production
-RUN npm ci
-
-# Bundle app source
-COPY . .
-# COPY ./src/ ./
-
-# COPY ../webapp/vue-js-client-crud/dist/ public
-
-EXPOSE 9001 
-
-ADD start.sh /
-RUN chmod +x /start.sh
-CMD ["/start.sh"]
-
+RUN npm ci --ignore-scripts --no-audit --no-fund
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build && npm prune --omit=dev --ignore-scripts
+FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+ENV NODE_ENV=production TZ=UTC
+WORKDIR /app
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+USER node
+EXPOSE 9001
+CMD ["node", "dist/server.js"]

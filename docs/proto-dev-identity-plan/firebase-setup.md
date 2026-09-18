@@ -1,0 +1,41 @@
+# 環境設定の改修と次の確認
+
+2026-09-18。WebのFirebase固定値、APIの資格情報への固定パスフォールバックと固定Realtime Database URLを除去した。ComposeでFIREBASE_PROJECT_IDと公開Web設定JSONを明示する。APIはサービスアカウントのproject_idが一致しなければ起動しない。WebもprojectIdの一致、必須項目、許可されていない設定項目を検証する。Firebase Web設定は公開情報だが、秘密鍵をそこへ入れてはいけない。
+
+まだサーバーへデプロイしていない。既存確認環境の.envには追加設定がないため、先に設定しないと新Composeは失敗する。現在の稼働イメージはそのまま動作する。設定変更後はWebの再ビルドが必要。これは認証先の分離であり、UID対応や旧メールドメイン除去は別作業。
+
+## 上松による確認・準備
+
+推奨構成はproto=既存ynu-lta-dev継続、dev=新Firebaseプロジェクト。2026-09-18に利用者がこの組合せを承認済み。
+
+dev用を新規作成する場合：Firebaseコンソールでプロジェクト作成、Authenticationのメール/パスワードを有効化、Webアプリを登録。公開Web設定とprojectIdを取得。iOS/Androidの登録は別Bundle ID/applicationIdの確定後に行う。protoの既存認証設定は変更しない。
+
+dev用のサービスアカウント秘密鍵はチャットに貼らず、新サーバーの環境専用パスへ安全に配置する。資格情報のアクセス権とコンテナー内実行ユーザーの読取権を整える。作成したprojectIdと設定ファイルの所在が分かれば、実際の設定を検証して新環境を作成できる。課金プランやIdentity Platformへの変更はこの段階では行わない。
+
+protoもFirebaseコンソールから実際に使用するWebアプリ設定を確認し、FIREBASE_WEB_CONFIGへ設定。既存ソースの公開設定と一致することを確認できれば再利用可能。FIREBASE_DATABASE_URLはRealtime Databaseを利用する場合のみ設定する。現在のSurvey保存先はMongoDB。
+
+サービスアカウントJSONをバックアップ/エクスポート用補助スクリプトで使用する際も、将来のAPIイメージではFIREBASE_PROJECT_IDを必ず渡す。保全済みの旧イメージによる再現手順とは区別する。
+
+## dev用Firebaseでお願いする作業
+
+1. Firebaseコンソールで開発専用プロジェクトを作る（表示名例：KIROKUN Dev）。既存ynu-lta-devは変更しない。
+2. Authenticationでメール/パスワードを有効化する。
+3. Webアプリを登録し、公開firebaseConfigを取得する。Hostingの設定は今回不要。
+4. 完了後、projectIdとWeb設定を共有する。秘密鍵・パスワードはチャットへ貼らない。サービスアカウント秘密鍵の配置は、その後に安全な手順で行う。
+5. dev用iOS/Androidの登録は新Bundle ID/applicationIdの準備後に行う。ソーシャルログインの各登録は後続工程。
+
+proto配置先は新サーバーの `/home/hiroki_u/kirokun-proto`。既存stagingとは別checkout/Compose名/DBボリューム。管理ユーザーが作成できる場所を使い、sudoによる既存設定変更は避けた。
+
+## dev設定受領後（2026-09-18）
+
+projectId=kirokun-dev、Web appId=1:1058257017339:web:309880b99105dd6732535e。Web公開設定は新サーバー~/kirokun-dev/.envに保存。Googleプロバイダー有効化は利用者申告。独立DBを準備したが、API用秘密鍵は未配置。GoogleログインUIとFirebase UIDに基づく管理者権限は未実装。プロバイダーを有効化しただけではユーザー作成・管理者権限付与とはならない。
+
+鍵の配置：Firebaseコンソールのkirokun-dev → プロジェクト設定 → サービスアカウントから秘密鍵を取得。チャットへ貼らず、SSH/SCPでuva.alchembright.comの /opt/kirokun-secrets/dev/firebase.json へ配置。親ディレクトリは0700、ファイルはコンテナー実行ユーザーが読み取れる権限が必要（現在の構成では親0700内のファイル0644、コンテナーへ読取専用マウント）。proto用鍵を流用しない。次回API起動前にproject_idのみを照合し、秘密部分は出力しない。
+
+上松のUID：Authenticationのユーザー一覧に対象Googleアカウントが存在するなら、そのUIDを確認する。まだなければGoogleログイン実装後に本人ログインで登録し、そのUIDに管理者権限を限定する。Web上で誰でも初回ログインすれば管理者になる方式は使わない。
+
+## devのUID管理者設定
+
+上松から指定されたUIDをFirebase Admin SDKで照合（有効、メール確認済み、Googleプロバイダー）。devだけAUTH_MODE=uidとし、サーバーのGit対象外.env内AUTH_IDENTITY_MAPでhiroki_u/管理者に対応付ける。未知UIDはメールが旧管理者名と一致しても拒否。UIDモードでは失効/無効ユーザーも検証する。protoはlegacy方式を維持し未更新。これは開発環境の初期管理者設定で、将来のDBによる所属/役割管理を代替する最終設計ではない。
+
+Google初回ログイン後は管理APIで権限を確認し、成功時に管理画面へ遷移。失敗時はUIDを表示して許可待ちを案内する。実UIDはドキュメント/ソースに記録せず、権限設定はサーバーに限定する。

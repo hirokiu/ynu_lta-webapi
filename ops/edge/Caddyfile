@@ -1,0 +1,4 @@
+{
+    admin 127.0.0.1:2019
+}
+import /etc/caddy/sites/*.caddy

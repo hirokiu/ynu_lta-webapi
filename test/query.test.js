@@ -1,0 +1,23 @@
+const assert = require('assert');
+const {pageOptions, literalSearch, dateRange} = require('../src/utils/query');
+assert.deepStrictEqual(pageOptions({}), {page:1,limit:50,skip:0});
+assert.equal(pageOptions({page:'3',limit:'20'}).skip,40);
+for (const query of [{page:0},{limit:101},{page:'x'},{limit:-1}]) assert.throws(()=>pageOptions(query));
+assert(literalSearch('a+b[0].*').test('a+b[0].*'));
+assert(!literalSearch('a+b').test('aaab'));
+assert.throws(()=>literalSearch({$ne:1}));
+assert.equal(dateRange(undefined,undefined),undefined);
+assert.throws(()=>dateRange('bad','2026-01-01'));
+assert.throws(()=>dateRange('2026-02-01','2026-01-01'));
+assert.throws(()=>dateRange('2026-01-01',undefined));
+assert.equal(dateRange('2026-01-01T00:00:00Z','2026-01-02T00:00:00Z').$gte.getUTCDate(),1);
+console.log('Filter validation tests passed');
+
+const {exportOptions}=require('../src/utils/query');
+assert.throws(()=>exportOptions({scope:'selected',ids:[]},true));
+assert.throws(()=>exportOptions({scope:'selected',ids:['bad']},true));
+assert.throws(()=>exportOptions({scope:'period'},true));
+assert.throws(()=>exportOptions({scope:'all',from:'2026-01-01',to:'2026-02-01'},true));
+assert.throws(()=>exportOptions({scope:'selected',ids:Array(1001).fill('a'.repeat(24))},true));
+assert.equal(exportOptions({scope:'selected',ids:['a'.repeat(24),'a'.repeat(24)]},true).selectedIds.length,1);
+console.log('Export validation tests passed');

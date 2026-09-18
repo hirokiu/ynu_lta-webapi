@@ -8,6 +8,8 @@ import path from 'path';
 import { CloudMessageService } from './services/cloudMessage.service';
 import { SurveyService } from './services/surveyApi.service';
 
+import { notificationsEnabled, preparationEnabled } from "./utils/runtimeFlags";
+
 class Api {
 
     public api: Application;
@@ -27,19 +29,24 @@ class Api {
 
         this.cloudMessageService = new CloudMessageService();
         this.surveyService = new SurveyService();
-        this.startBackgroundRunner();
+        if (preparationEnabled() || notificationsEnabled()) this.startBackgroundRunner();
     }
 
     private setConfig() {
         this.api.use(bodyParser.json({ limit: '50mb' }));
         this.api.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
         this.api.use(cors());
+        this.api.get("/api/health", (_req, res) => {
+            const ready = mongoose.connection.readyState === 1;
+            res.status(ready ? 200 : 503).json({ ready });
+        });
     }
 
     private setMongoConfig() {
         mongoose.Promise = global.Promise;
         mongoose.connect(MONGO_URL, {
-            useNewUrlParser: true
+            useNewUrlParser: true,
+            autoIndex: false
         });
     }
 
@@ -48,7 +55,8 @@ class Api {
     }
 
     private notifyAssignments() {
-        this.surveyService.CreateImpendingResultObjects();
+        if (preparationEnabled()) this.surveyService.CreateImpendingResultObjects();
+        if (!notificationsEnabled()) return;
 
         this.surveyService.FindRegistrationTokensForNotification(
             (deviceRegistrationToken: string, title: String, body: String) => {
