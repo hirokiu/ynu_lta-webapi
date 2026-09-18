@@ -21,6 +21,8 @@ services:
     environment:
       MONGO_URL: mongodb://mongodb:27017/Survey
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:?Set FIREBASE_PROJECT_ID}
+      FIREBASE_DATABASE_URL: ${FIREBASE_DATABASE_URL:-}
       NOTIFICATIONS_ENABLED: ${NOTIFICATIONS_ENABLED:-false}
       ASSIGNMENT_PREPARATION_ENABLED: ${ASSIGNMENT_PREPARATION_ENABLED:-false}
       TZ: UTC
@@ -38,6 +40,9 @@ services:
     build:
       context: ./webapp
       dockerfile: dockerfile
+      args:
+        FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:?Set FIREBASE_PROJECT_ID}
+        FIREBASE_WEB_CONFIG: ${FIREBASE_WEB_CONFIG:?Set public Firebase Web configuration}
     restart: unless-stopped
     ports: ["${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8080}:80"]
     depends_on:
