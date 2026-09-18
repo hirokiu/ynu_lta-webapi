@@ -63,3 +63,7 @@ wwwを入口とし、proto/dev/www/admin等の予約名を確保。研究者/プ
 - Firebaseユーザー更新：https://firebase.google.com/docs/auth/admin/manage-users
 - トークン検証：https://firebase.google.com/docs/auth/admin/verify-id-tokens
 - セッション管理：https://firebase.google.com/docs/auth/admin/manage-sessions
+
+## 追加決定：複数ログインと連絡先
+
+メール/パスワード・Google・GitHub・LINEを追加し、全利用者に確認済みの受信可能メールを求める。具体的な移行・復旧・招待要件は[ログイン要件](login-requirements.md)を参照。以前の「ログイン方式未決定」はこの要件で更新し、LINE連携方法などの実装方式は検証して決定する。
