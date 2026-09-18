@@ -33,3 +33,9 @@ projectId=kirokun-dev、Web appId=1:1058257017339:web:309880b99105dd6732535e。W
 鍵の配置：Firebaseコンソールのkirokun-dev → プロジェクト設定 → サービスアカウントから秘密鍵を取得。チャットへ貼らず、SSH/SCPでuva.alchembright.comの /opt/kirokun-secrets/dev/firebase.json へ配置。親ディレクトリは0700、ファイルはコンテナー実行ユーザーが読み取れる権限が必要（現在の構成では親0700内のファイル0644、コンテナーへ読取専用マウント）。proto用鍵を流用しない。次回API起動前にproject_idのみを照合し、秘密部分は出力しない。
 
 上松のUID：Authenticationのユーザー一覧に対象Googleアカウントが存在するなら、そのUIDを確認する。まだなければGoogleログイン実装後に本人ログインで登録し、そのUIDに管理者権限を限定する。Web上で誰でも初回ログインすれば管理者になる方式は使わない。
+
+## devのUID管理者設定
+
+上松から指定されたUIDをFirebase Admin SDKで照合（有効、メール確認済み、Googleプロバイダー）。devだけAUTH_MODE=uidとし、サーバーのGit対象外.env内AUTH_IDENTITY_MAPでhiroki_u/管理者に対応付ける。未知UIDはメールが旧管理者名と一致しても拒否。UIDモードでは失効/無効ユーザーも検証する。protoはlegacy方式を維持し未更新。これは開発環境の初期管理者設定で、将来のDBによる所属/役割管理を代替する最終設計ではない。
+
+Google初回ログイン後は管理APIで権限を確認し、成功時に管理画面へ遷移。失敗時はUIDを表示して許可待ちを案内する。実UIDはドキュメント/ソースに記録せず、権限設定はサーバーに限定する。

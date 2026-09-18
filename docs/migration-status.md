@@ -3,10 +3,12 @@
 今後の報告は、この全体ステップと現在地を示す。
 
 1. 保全：完了。新サーバーのみ保管。Macへの転送は不要との利用者指示（2026-09-18）。全56Surveyの出力とDB復元確認済み。Firebase認証の保全は認証変更前に別途行う。
-2. 新環境の準備：進行中。非公開stagingへ配信準備/通知分離を反映。proto/dev別設定例を準備。Web/APIのFirebase設定外出しとプロジェクト照合を実装・ローカル検証。新設定はprotoへデプロイ済み。既存stagingは従来版を維持。Firebase構成は承認済み。proto専用checkout・DBへ保全済み8,946件を復元。localhost:8081、通知/配信準備停止で正常起動・件数一致を確認済み。dev用Firebase kirokun-devのWeb設定受領済み。新サーバー~/kirokun-devに設定と独立空DBを準備。dev鍵のプロジェクト照合とAPI起動確認済み。dev限定のGoogle初回ログイン/UID表示を追加しビルド・処理テスト済み。localhost:18082からSSH経由で本人確認待ち。UID管理者対応は未完了、外部非公開。
-3. 認証・アプリ更新：着手。devでGoogle初回ログインを準備。UID対応、旧認証ドメイン除去、確認済み連絡メール・再設定・必要なアプリ更新。
+2. 新環境の準備：進行中。非公開stagingへ配信準備/通知分離を反映。proto/dev別設定例を準備。Web/APIのFirebase設定外出しとプロジェクト照合を実装・ローカル検証。新設定はprotoへデプロイ済み。既存stagingは従来版を維持。Firebase構成は承認済み。proto専用checkout・DBへ保全済み8,946件を復元。localhost:8081、通知/配信準備停止で正常起動・件数一致を確認済み。dev用Firebase kirokun-devのWeb設定受領済み。新サーバー~/kirokun-devに設定と独立空DBを準備。dev鍵のプロジェクト照合とAPI起動確認済み。dev限定のGoogle初回ログイン/UID表示を追加しビルド・処理テスト済み。localhost:18082からSSH経由で本人確認待ち。指定UIDのみをdev管理者hiroki_uに対応付ける機能を実装・テスト、外部非公開。
+3. 認証・アプリ更新：着手。devでGoogleログインとUID管理者設定を実装。本人による管理画面確認待ち。UID対応、旧認証ドメイン除去、確認済み連絡メール・再設定・必要なアプリ更新。
 4. 共同研究者の確認：未着手。対象はproto。devは上松専用。
 5. 最終移行：未実施。旧環境書込停止・再バックアップ・proto復元・DNS/旧API互換接続切替・実機/復元/定期処理確認。
 6. 旧サーバー解約：未実施。残依存をなくし、観察期間後に上松が契約解約。
 
 既存環境は読み取りのみ。公開用edgeコンテナーは起動しない。現stagingはFirebaseを共有した移行確認コピーで、正式なdev/protoと混同しない。
+
+2026-09-18：devにAPI 2be1cde / Web 06a6bf7を反映。UIDモードで管理者1名（hiroki_u）、未知UID拒否、未認証API401、ヘルス正常、通知falseを確認。本人Googleログインでの画面遷移は確認待ち。新サーバーのビルド時メモリ圧迫を受け、旧非公開stagingは停止（データ保持）。protoと旧本番は変更なし。dev確認URLはSSHトンネル経由のhttp://localhost:18082/login。
