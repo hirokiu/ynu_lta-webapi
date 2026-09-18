@@ -6,7 +6,7 @@
 
 ## 上松による確認・準備
 
-推奨構成はproto=既存ynu-lta-dev継続、dev=新Firebaseプロジェクト。この組合せを確定する。
+推奨構成はproto=既存ynu-lta-dev継続、dev=新Firebaseプロジェクト。2026-09-18に利用者がこの組合せを承認済み。
 
 dev用を新規作成する場合：Firebaseコンソールでプロジェクト作成、Authenticationのメール/パスワードを有効化、Webアプリを登録。公開Web設定とprojectIdを取得。iOS/Androidの登録は別Bundle ID/applicationIdの確定後に行う。protoの既存認証設定は変更しない。
 
@@ -15,3 +15,13 @@ dev用のサービスアカウント秘密鍵はチャットに貼らず、新�
 protoもFirebaseコンソールから実際に使用するWebアプリ設定を確認し、FIREBASE_WEB_CONFIGへ設定。既存ソースの公開設定と一致することを確認できれば再利用可能。FIREBASE_DATABASE_URLはRealtime Databaseを利用する場合のみ設定する。現在のSurvey保存先はMongoDB。
 
 サービスアカウントJSONをバックアップ/エクスポート用補助スクリプトで使用する際も、将来のAPIイメージではFIREBASE_PROJECT_IDを必ず渡す。保全済みの旧イメージによる再現手順とは区別する。
+
+## dev用Firebaseでお願いする作業
+
+1. Firebaseコンソールで開発専用プロジェクトを作る（表示名例：KIROKUN Dev）。既存ynu-lta-devは変更しない。
+2. Authenticationでメール/パスワードを有効化する。
+3. Webアプリを登録し、公開firebaseConfigを取得する。Hostingの設定は今回不要。
+4. 完了後、projectIdとWeb設定を共有する。秘密鍵・パスワードはチャットへ貼らない。サービスアカウント秘密鍵の配置は、その後に安全な手順で行う。
+5. dev用iOS/Androidの登録は新Bundle ID/applicationIdの準備後に行う。ソーシャルログインの各登録は後続工程。
+
+proto配置先は新サーバーの `/home/hiroki_u/kirokun-proto`。既存stagingとは別checkout/Compose名/DBボリューム。管理ユーザーが作成できる場所を使い、sudoによる既存設定変更は避けた。
