@@ -230,3 +230,20 @@ AssignmentResultsが存在しない場合に201を返していたため、404へ
   Protoと旧本番のコード・通知設定・研究者認証は変更なし。
 - この結果はサーバーAPIの実認証試験。iOS/Android SDK・画面操作・通知受信、
   Google追加連携の本人操作、研究者2名の認証移行、最終移行は未完了。
+
+### モバイル実認証・回答統合テスト（2026-10-06 02:35 JST）
+
+- iOS 7a423a2: 専用SE/iOS18.0で実KirokunAccountSession・SurveyRepositoryの
+  招待ユーザー名ログイン、本人ID、一覧、回答送信、再取得値一致が成功。
+- Android e5ec5d9: API23と37の読み取り専用エミュレーターで同じ通し試験成功。
+  API23のDevDebugでnetworkSecurityConfigが効かないため、DevDebug限定で
+  usesCleartextTrafficを許可。API24以降はlocalhost限定XMLを維持。Protoは変更なし。
+- Devに作ったQA専用Assignment2件だけを試験後に削除。元のAssignment6件を維持。
+  シミュレーター内とMacの一時認証ファイルは削除。テストコードに秘密値なし。
+- Androidへの初回ファイル転送でQA専用パスワードがPTY出力へ出たため、
+  そのQAアカウントだけを直ちに再設定。旧PW・旧セッション拒否を確認し、
+  更新後の認証でAndroid試験成功。以降は非PTY・標準出力抑止で転送。
+  実利用者の認証情報には変更なし。
+- 画面タップ試験とは区別する。Devは通知・端末登録・topic購読を停止中。
+  受信試験は、Dev Firebaseの専用端末だけを許す検証方式を用意したうえで実施する。
+  Proto通知の一括有効化や研究者の認証移行・一般配布は未実施。
