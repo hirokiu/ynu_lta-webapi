@@ -13,6 +13,7 @@ const fake = {auth:()=>({
   createUser:async input=>{if(users.has(input.uid))throw Object.assign(Error('exists'),{code:'auth/uid-already-exists'}); users.set(input.uid,{...input,disabled:false,providerData:[]});return input},
   getUserByEmail:async email=>{if(email==='firebase_only@humlablu.com')return {uid:'existing-only'};throw Object.assign(Error('not found'),{code:'auth/user-not-found'})},
   getUser:async uid=>{if(!users.has(uid))throw Error('missing');return users.get(uid)},
+  revokeRefreshTokens:async uid=>{if(users.get(uid).revokeFails)throw Error('unavailable')},
   createCustomToken:async uid=>'test-token-'+uid
 })};
 const firebasePath=require.resolve('../dist/services/firebaseAdmin.service');
@@ -85,6 +86,28 @@ let server;
  const cancel=await post('/api/admin/account-invitations',{username:'cancelled'},'owner');
  assert.equal((await post('/api/admin/account-invitations/cancelled/cancel',{},'owner')).status,200);
  assert.equal((await post('/api/auth/activate',{invitation:cancel.body.invitation,password})).status,400);
+ users.get(active.uid).disabled=false;
+ assert.equal((await post('/api/admin/password-resets',{username:'alice'},'legacy')).status,401);
+ await Account.updateOne({username:'alice'},{$set:{createdBy:'someone_else'}});
+ assert.equal((await post('/api/admin/password-resets',{username:'alice'},'owner')).status,409);
+ await Account.updateOne({username:'alice'},{$set:{createdBy:'hiroki_u'}});
+ const reset1=await post('/api/admin/password-resets',{username:'alice'},'owner');assert.equal(reset1.status,200);
+ const reset2=await post('/api/admin/password-resets',{username:'alice'},'owner');assert.equal(reset2.status,200);
+ const newPassword='a different test password';
+ assert.equal((await post('/api/auth/reset-password',{reset:reset1.body.reset,password:newPassword})).status,400);
+ const resets=await Promise.all([1,2].map(()=>post('/api/auth/reset-password',{reset:reset2.body.reset,password:newPassword})));
+ assert.equal(resets.filter(r=>r.status===200).length,1);
+ assert.equal((await post('/api/auth/username-login',{username:'alice',password})).status,401);
+ assert.equal((await post('/api/auth/username-login',{username:'alice',password:newPassword})).status,200);
+ assert.equal((await post('/api/auth/reset-password',{reset:reset2.body.reset,password:newPassword})).status,400);
+ await assert.rejects(resolveAccountIdentity({uid:active.uid,firebase:{sign_in_provider:'custom'},credentialVersion:0}));
+ assert.deepEqual(await resolveAccountIdentity({uid:active.uid,firebase:{sign_in_provider:'custom'},credentialVersion:1}),{userId:active.userId,isAdmin:false});
+ const expReset=await post('/api/admin/password-resets',{username:'alice'},'owner');
+ await Account.updateOne({username:'alice'},{$set:{resetExpiresAt:new Date(0)}});
+ assert.equal((await post('/api/auth/reset-password',{reset:expReset.body.reset,password})).status,400);
+ const failReset=await post('/api/admin/password-resets',{username:'alice'},'owner');users.get(active.uid).revokeFails=true;
+ assert.equal((await post('/api/auth/reset-password',{reset:failReset.body.reset,password})).status,503);
+ await assert.rejects(resolveAccountIdentity({uid:active.uid}));
  const migrationToken=secret();
  await Account.create({scope:'test-lab',username:'hanzawa',uid:'researcher',userId:'hanzawa',migration:true,state:'invited',invitationHash:digest(migrationToken),invitationExpiresAt:new Date(Date.now()+60000)});
  assert.deepEqual(await resolveAccountIdentity({uid:'researcher'}),{userId:'hanzawa',isAdmin:true});

@@ -94,7 +94,7 @@ export function accountRoutes(app: Application) {
         if (account.migration) return res.status(409).json({error: '既存アカウントの移行では、先にパスワードを設定してください。その後Googleを追加できます。'});
         try { await admin.auth().createUser({uid: account.uid}); }
         catch (e) { if (e.code !== 'auth/uid-already-exists') throw e; }
-        res.json({customToken: await admin.auth().createCustomToken(account.uid)});
+        res.json({customToken: await admin.auth().createCustomToken(account.uid, {credentialVersion: account.credentialVersion || 0})});
     }));
     app.post('/api/auth/activate-google', wrap(async (req, res) => {
         const invitation = req.body && req.body.invitation;
@@ -128,7 +128,7 @@ export function accountRoutes(app: Application) {
         const hash = await passwordHash(password);
         try { await admin.auth().createUser({uid: account.uid}); }
         catch (e) { if (e.code !== 'auth/uid-already-exists') throw e; }
-        const token = await admin.auth().createCustomToken(account.uid);
+        const token = await admin.auth().createCustomToken(account.uid, {credentialVersion: account.credentialVersion || 0});
         // Prepare an empty participant record only. No existing user or answer is changed.
         if (account.migration) {
             if (!await User.exists({userId: account.userId})) throw new Error('Existing user data missing');
@@ -139,6 +139,41 @@ export function accountRoutes(app: Application) {
             $unset: {invitationHash: '', invitationExpiresAt: ''}}, {new: true}).exec();
         if (!updated) return res.status(409).json({error: 'この招待はすでに使用されています。ログインしてください。'});
         res.json({customToken: token, username: account.username});
+    }));
+    app.post('/api/admin/password-resets', wrap(async (req, res) => {
+        checkIfAuthenticatedAdmin(req, res, async actor => {
+            try {
+                let name: string;
+                try { name = username(req.body && req.body.username); } catch (_) { return res.sendStatus(400); }
+                const reset = secret();
+                const expiresAt = new Date(Date.now() + 3600000);
+                // Researchers can recover participants they invited, not another
+                // researcher's account or the pre-existing migration administrators.
+                const changed = await Account.findOneAndUpdate({scope: accountScope(), username: name,
+                    state: 'active', migration: {$ne: true}, createdBy: actor},
+                    {$set: {resetHash: digest(reset), resetExpiresAt: expiresAt}}, {new: true}).exec();
+                if (!changed) return res.status(409).json({error: 'ご自身が招待した登録済み回答者のみ再設定できます。研究者の復旧は上松さんにお問い合わせください。'});
+                res.json({reset, expiresAt});
+            } catch (_) { if (!res.headersSent) res.status(503).json({error: '再設定リンクを発行できませんでした。'}); }
+        });
+    }));
+    app.post('/api/auth/reset-password', wrap(async (req, res) => {
+        const reset = req.body && req.body.reset;
+        const password = req.body && req.body.password;
+        if (typeof reset !== 'string' || !/^[a-f0-9]{64}$/.test(reset) || !validPassword(password)) return res.sendStatus(400);
+        if (!await publicLimit(req, res, digest(reset))) return;
+        const hash = await passwordHash(password);
+        const account: any = await Account.findOneAndUpdate({scope: accountScope(), state: 'active',
+            resetHash: digest(reset), resetExpiresAt: {$gt: new Date()}},
+            {$set: {state: 'recovering'}}, {new: true}).lean().exec();
+        if (!account) return res.status(400).json({error: 'リンクが無効、期限切れ、使用済み、または処理中です。'});
+        // Fail closed if Firebase revocation or the final write fails. Do not allow
+        // access until the operator has checked and completed recovery.
+        await admin.auth().revokeRefreshTokens(account.uid);
+        await Account.updateOne({_id: account._id, state: 'recovering'},
+            {$set: {passwordHash: hash, state: 'active'}, $inc: {credentialVersion: 1},
+                $unset: {resetHash: '', resetExpiresAt: ''}}).exec();
+        res.json({message: 'パスワードを再設定しました。新しいパスワードでログインしてください。'});
     }));
     app.post('/api/auth/username-login', wrap(async (req, res) => {
         let name: string;
@@ -152,7 +187,7 @@ export function accountRoutes(app: Application) {
         if (!account || !matches) return res.status(401).json({error: 'ユーザー名またはパスワードが正しくありません。'});
         const firebaseUser = await admin.auth().getUser(account.uid);
         if (firebaseUser.disabled) return res.status(401).json({error: 'ログインできません。管理者へお問い合わせください。'});
-        const customToken = await admin.auth().createCustomToken(account.uid);
+        const customToken = await admin.auth().createCustomToken(account.uid, {credentialVersion: account.credentialVersion || 0});
         await Account.updateOne({_id: account._id, state: 'active'}, {$set: {lastUsernameLoginAt: new Date()}}).exec();
         res.json({customToken});
     }));

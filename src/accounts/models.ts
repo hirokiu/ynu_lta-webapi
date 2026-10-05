@@ -2,8 +2,9 @@ import mongoose from 'mongoose';
 const account = new mongoose.Schema({
     scope: {type: String, required: true}, username: {type: String, required: true},
     uid: {type: String, required: true}, userId: {type: String, required: true},
-    state: {type: String, enum: ['invited', 'active', 'disabled'], required: true},
+    state: {type: String, enum: ['invited', 'active', 'disabled', 'recovering'], required: true},
     passwordHash: {type: String, select: false}, invitationHash: {type: String, select: false},
+    resetHash: {type: String, select: false}, resetExpiresAt: Date, credentialVersion: {type: Number, default: 0},
     invitationExpiresAt: Date, createdBy: String, migration: Boolean, lastUsernameLoginAt: Date
 }, {timestamps: true});
 account.index({scope: 1, username: 1}, {unique: true});
