@@ -79,3 +79,30 @@ on measurements. Do not intentionally exhaust RAM on the live server.
 
 Tests: synthetic sustained/transient pressure, Dev-first stopping and strict
 container identity checking (3 passing tests). Installer shell syntax checked.
+
+## Dev deployment verification (2026-10-05, 23:45 JST)
+
+- API code 439d603, Web code ecbce2a; both images tagged dev-export-439d603.
+- API image: 29acba3af667e478675642f15d70836aeb5dcd9e001d83848c1d94dc3392f1d1.
+- Web image: c1292a6e453f5ddd4f1d75db1ff801169782fe29fb16cbaa24ac4e4f52c76241.
+- Pre-deployment backup: survey-20261005T144435Z-46681.archive.gz (gzip/checksum
+  verified; this particular archive has not yet undergone a restore drill).
+- Transfer archive SHA256: bec13fcbe5034cb4f5d2ce5d35b5445c9976823c957f3e49581d9acce148fded.
+- Images built on Mac, loaded on server, deployed without host builds.
+- The exact API image passed the synthetic 24,000-row / 98,460,901-byte CSV test
+  with a 256 MiB memory limit and 1 CPU, using default Node settings: peak RSS
+  about 111 MiB. Also passed with a 64 MiB JS heap. This tests the export helper
+  with synthetic records; database integration was tested separately on local Mongo.
+- Dev real Firebase admin authentication and CSV/JSON export for all six existing
+  surveys succeeded. These Dev surveys currently have no saved answers; no new
+  answers were inserted for this check. Nonempty/large-answer coverage is synthetic.
+- Dev API healthy, restart count zero, 256 MiB / 0.75 CPU limits retained.
+- Host guard active with zero restarts, host available memory about 1,188 MiB.
+- Proto remains on proto-85b722d, healthy, HTTPS health 200. Its existing restart
+  count remains one (the earlier post-reboot Mongo connection failure).
+- Repo resource settings are now parameterized; Dev limits are in .env. The
+  temporary operational Compose edit was reconciled exactly before fast-forward.
+- Proto export implementation is not yet updated. Apply a narrowly scoped export
+  release after review; do not accidentally enable account migration as part of it.
+- Build still reports existing legacy dependency vulnerabilities and Web bundle
+  size warnings. This export fix is not a dependency upgrade.

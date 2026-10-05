@@ -27,3 +27,6 @@ cheatsheet
 dist/
 ops/state/
 backups/
+
+# Python operational-test cache
+__pycache__/
