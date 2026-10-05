@@ -108,12 +108,33 @@ let server;
  const failReset=await post('/api/admin/password-resets',{username:'alice'},'owner');users.get(active.uid).revokeFails=true;
  assert.equal((await post('/api/auth/reset-password',{reset:failReset.body.reset,password})).status,503);
  await assert.rejects(resolveAccountIdentity({uid:active.uid}));
+ const fs=require('fs');const os=require('os');const path=require('path');
+ const {recoverAccount}=require('../dist/accounts/recovery');
+ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'kirokun-recovery-'));
+ try {
+   await assert.rejects(recoverAccount('repair','alice',path.join(temp,'denied.json')));
+   users.get(active.uid).revokeFails=false;
+   assert.equal((await recoverAccount('inspect','alice')).state,'recovering');
+   await recoverAccount('repair','alice',path.join(temp,'repair.json'),true);
+   const repaired=JSON.parse(fs.readFileSync(path.join(temp,'repair.json')));
+   assert.equal(fs.statSync(path.join(temp,'repair.json')).mode & 0o777,0o600);
+   assert.equal((await post('/api/auth/username-login',{username:'alice',password:newPassword})).status,401);
+   assert.equal((await post('/api/auth/reset-password',{reset:repaired.reset,password})).status,200);
+   assert.equal((await post('/api/auth/username-login',{username:'alice',password})).status,200);
+ } finally { fs.rmSync(temp,{recursive:true,force:true}); }
  const migrationToken=secret();
  await Account.create({scope:'test-lab',username:'hanzawa',uid:'researcher',userId:'hanzawa',migration:true,state:'invited',invitationHash:digest(migrationToken),invitationExpiresAt:new Date(Date.now()+60000)});
  assert.deepEqual(await resolveAccountIdentity({uid:'researcher'}),{userId:'hanzawa',isAdmin:true});
  assert.equal((await post('/api/auth/invitation-google-session',{invitation:migrationToken})).status,409);
  assert.equal((await post('/api/auth/activate',{invitation:migrationToken,password})).status,200);
  assert.deepEqual(await resolveAccountIdentity({uid:'researcher'}),{userId:'hanzawa',isAdmin:true});
+ const researchTemp=fs.mkdtempSync(path.join(os.tmpdir(),'kirokun-researcher-'));
+ try {
+   await recoverAccount('issue','hanzawa',path.join(researchTemp,'reset.json'));
+   const issued=JSON.parse(fs.readFileSync(path.join(researchTemp,'reset.json')));
+   assert.equal((await post('/api/auth/reset-password',{reset:issued.reset,password})).status,200);
+   assert.deepEqual(await resolveAccountIdentity({uid:'researcher'}),{userId:'hanzawa',isAdmin:true});
+ } finally { fs.rmSync(researchTemp,{recursive:true,force:true}); }
  assert.deepEqual(await resolveAccountIdentity({uid:'legacy'}),{userId:'old_participant',isAdmin:false});
  assert.equal(JSON.stringify(await User.find({userId:{$in:['hanzawa','old_participant']}}).sort('userId').lean()),before);
  for(let i=0;i<11;i++){const r=await post('/api/auth/username-login',{username:'missing',password});if(i===10)assert.equal(r.status,429);}

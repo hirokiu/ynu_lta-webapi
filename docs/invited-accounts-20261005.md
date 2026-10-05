@@ -87,3 +87,26 @@ Firebase失効処理または最終DB保存に失敗した場合は recovering �
 隔離したMongoDBとFirebaseモックで、権限・発行者制限、再発行、同時実行の単一成功、期限切れ・再利用拒否、旧パスワード拒否、新パスワード成功、旧カスタム認証の拒否、失効障害時のアクセス拒否を検証。API/Webビルド成功。実Firebase・ブラウザーQA・アプリ対応は未完了。公開環境と実アカウントへの変更なし。
 
 アプリ接続調査: iOS LoginViewController、Android LoginActivity は依然として humlablu.com を付加し、メールの先頭から利用者名を復元する。新認証では username-login の customToken と /api/me の userId を使うよう、ログイン時だけでなく起動・通知登録まで一貫して変更する必要がある。
+
+## オペレーターによる復旧（2026-10-05 追加）
+
+上記の復旧ツール未実装の項目に対応する `dist/accounts/recovery.js` を追加した。実環境では未実行。環境変数は対象環境の認証・DB設定を使い、USERNAME_ACCOUNTS_ENABLED=true / AUTH_MODE=uid が必要。対象名・環境・本人確認・直前のバックアップを確認する。リンクの発行は認証手段の再設定を許可する操作なので、本人以外に渡さない。
+
+### 登録済み研究者のパスワード再設定
+
+```sh
+node dist/accounts/recovery.js inspect hanzawa
+node dist/accounts/recovery.js issue hanzawa /private-output/hanzawa-reset.json
+```
+
+同様に hasegawa も対応する。既存UIDマッピング、管理権限、元の利用者データが一致しない場合は拒否する。移行前の invited 状態には使えない。出力ファイルは新規作成のみ・所有者読み書きのみ。表示された成功を確認後、出力の reset 値から `https://対象ホスト/reset-password#reset=値` を作り本人に渡す。本人が新パスワードを入力する。上松がパスワードを受け取る必要はない。ファイルやリンクをGit、ログ、チケットへ添付しない。発行後1時間有効。
+
+### 通信障害後の recovering 状態からの復旧
+
+1. inspect で対象環境・対象アカウント・recovering 状態を確認する。
+2. 対象環境の全APIワーカーを停止し、処理中リクエストが残っていないことを確認する。
+3. `node dist/accounts/recovery.js repair 対象名 /private-output/new-reset.json --api-stopped` を管理用の別プロセスで実行する。フラグは停止を宣言するもので、自動停止・自動検出は行わない。
+4. 成功後にAPIを再起動して、本人へ新しい再設定リンクを渡す。旧パスワードは復元せず、削除する。旧Firebaseセッションを失効し、カスタム認証の世代も更新する。UID・回答データ・Google連携は維持する。
+5. 失敗したら出力ファイルがあっても配布しない。状態を再確認し、問題を解消して別の新規出力ファイルで再実行する。手動で state だけを active に変更しない。
+
+ローカル隔離DBとFirebaseモックで、停止宣言なしの拒否、recovering→再設定→ログイン成功、旧パスワード拒否、ファイル権限0600、研究者のUID・管理権限・既存データ保全を検証済み。APIビルド成功。実Firebaseの失効動作・運用リハーサル・アプリの新認証対応は引き続き公開前の必須事項。
