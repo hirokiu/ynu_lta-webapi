@@ -211,3 +211,22 @@ AssignmentResultsが存在しない場合に201を返していたため、404へ
   未認証拒否、対象者偽装拒否、欠落・不正ID、準備なし、所属解除、管理者代理を確認。
 - Devへの反映・実Firebase・モバイルSDKの通し検証は別途結果を記録する。
   Protoと旧本番にはこの時点で未反映。
+
+### Dev反映と実認証での回答保存（2026-10-06 02:20 JST）
+
+- Devソース336754b、API実装a1a89fd、イメージdev-answer-a1a89fdへ更新。
+  Webは直前のdev-auth-99b5dc2と同一イメージ。Macビルドを転送し、サーバーでビルドしない。
+- バックアップsurvey-20261005T171938Z-172750.archive.gzを取得、gzip・SHA256生成済み。
+  今回のバックアップの独立復元試験は未実施。
+- 転送archive SHA256: c62e6c029856f59d6607c5e5e9c9497711e0f94d58a13456865b2373be9aa922。
+  Macとサーバーでarchive・全8レイヤーの一致を確認。DockerイメージIDは取込先で異なる。
+- ops/dev-answer-smoke.jsをDevだけで実行。既存QAユーザー名とパスワード→
+  Firebase custom token交換→/me本人識別→個人とグループ回答保存・DB値一致に成功。
+  他人の回答先403、準備未完了404、グループ所属解除後403を確認。
+- 一時作成したAssignment3件・AssignmentResults1件・Group1件は、作成IDを指定して削除し、
+  残存0件を確認。既存件数はSurvey6、Assignment6、User2、Account1を保持。
+  QA認証情報はサーバー内のみで扱い、ログやGitへ出していない。
+- Dev/Protoの全コンテナーhealthy、公開Proto HTTP200、ホスト負荷監視active。
+  Protoと旧本番のコード・通知設定・研究者認証は変更なし。
+- この結果はサーバーAPIの実認証試験。iOS/Android SDK・画面操作・通知受信、
+  Google追加連携の本人操作、研究者2名の認証移行、最終移行は未完了。
