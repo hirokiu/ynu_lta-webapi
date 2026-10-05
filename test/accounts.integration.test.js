@@ -18,7 +18,7 @@ const fake = {auth:()=>({
 })};
 const firebasePath=require.resolve('../dist/services/firebaseAdmin.service');
 require.cache[firebasePath]={id:firebasePath,filename:firebasePath,loaded:true,exports:{__esModule:true,default:fake}};
-const {accountRoutes}=require('../dist/accounts/routes');
+const {Controller}=require('../dist/main.controller');
 const {Account,AuthThrottle}=require('../dist/accounts/models');
 const {User}=require('../dist/models/survey.model');
 const {resolveAccountIdentity}=require('../dist/accounts/identity');
@@ -26,9 +26,10 @@ const {secret,digest,passwordMatches,username}=require('../dist/accounts/credent
 let server;
 (async()=>{
  await mongoose.connect('mongodb://127.0.0.1:27071/kirokun_auth_test_'+crypto.randomBytes(6).toString('hex'),{useNewUrlParser:true,useUnifiedTopology:true,autoIndex:false});
- const app=express();app.use(express.json());accountRoutes(app);
+ const app=express();app.use(express.json());new Controller(app);
  server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s))});
  const url='http://127.0.0.1:'+server.address().port;
+ async function get(path,token){const r=await fetch(url+path,{headers:token?{token}:{}});return {status:r.status,body:await r.json()};}
  async function post(path,body,token){const r=await fetch(url+path,{method:'POST',headers:{'Content-Type':'application/json',...(token?{token}:{})},body:JSON.stringify(body)});const text=await r.text();return {status:r.status,body:text?JSON.parse(text):null};}
  await User.create({userId:'hanzawa',timezone:'Europe/Stockholm',deviceToken:'preserved'});
  await User.create({userId:'old_participant',deviceToken:'untouched'});
@@ -44,6 +45,8 @@ let server;
  const pending=await Account.findOne({username:'alice'}).select('+invitationHash').lean();
  assert.notEqual(pending.invitationHash,invite.body.invitation);
  await assert.rejects(resolveAccountIdentity({uid:pending.uid}));
+ assert.equal((await get('/api/me','issued:'+pending.uid)).status,401);
+ assert.equal((await get('/api/me')).status,401);
  const password='a test password with spaces';
  assert.equal((await post('/api/auth/activate',{invitation:invite.body.invitation,password:'short'})).status,400);
  const activated=await Promise.all([1,2].map(()=>post('/api/auth/activate',{invitation:invite.body.invitation,password})));
@@ -53,6 +56,9 @@ let server;
  assert.equal(active.state,'active');assert.equal(active.invitationHash,undefined);assert.notEqual(active.passwordHash,password);
  assert(await passwordMatches(password,active.passwordHash));
  assert.deepEqual(await resolveAccountIdentity({uid:active.uid}),{userId:active.userId,isAdmin:false});
+ assert.deepEqual((await get('/api/me','issued:'+active.uid)).body,{userId:active.userId});
+ assert.equal((await get('/api/users/old_participant','issued:'+active.uid)).status,401);
+ assert.equal((await get('/api/users/'+active.userId+'/assignments','issued:'+active.uid)).status,200);
  assert.equal((await post('/api/auth/username-login',{username:'alice',password})).status,200);
  assert.equal((await post('/api/auth/username-login',{username:'alice',password:'wrong but long password'})).status,401);
  assert.equal((await post('/api/auth/username-login',{username:'missing',password})).status,401);
@@ -74,6 +80,10 @@ let server;
  assert.deepEqual(await resolveAccountIdentity({uid:googleAccount.uid}),{userId:googleAccount.userId,isAdmin:false});
  assert.equal((await post('/api/auth/username-login',{username:'google_user',password})).status,401);
  const rotating=await post('/api/admin/account-invitations',{username:'rotating'},'owner');
+ await Account.updateOne({username:'rotating'},{$set:{createdBy:'another_researcher'}});
+ assert.equal((await post('/api/admin/account-invitations/rotating/reissue',{},'owner')).status,409);
+ assert.equal((await post('/api/admin/account-invitations/rotating/cancel',{},'owner')).status,409);
+ await Account.updateOne({username:'rotating'},{$set:{createdBy:'hiroki_u'}});
  await post('/api/auth/invitation-google-session',{invitation:rotating.body.invitation});
  const prior=await Account.findOne({username:'rotating'}).lean();
  assert.equal((await post('/api/admin/account-invitations/rotating/reissue',{},'legacy')).status,401);

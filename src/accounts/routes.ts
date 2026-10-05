@@ -65,7 +65,7 @@ export function accountRoutes(app: Application) {
                 try { name = username(req.params.name); } catch (_) { return res.sendStatus(400); }
                 const action = req.params.action;
                 if (action !== 'reissue' && action !== 'cancel') return res.sendStatus(400);
-                const filter = {scope: accountScope(), username: name, state: 'invited', migration: {$ne: true}};
+                const filter = {scope: accountScope(), username: name, state: 'invited', migration: {$ne: true}, createdBy: actor};
                 const previous: any = await Account.findOne(filter).lean().exec();
                 if (!previous) return res.status(409).json({error: '未登録の新規招待のみ変更できます。既存アカウントの移行は対象外です。'});
                 const invitation = secret();
