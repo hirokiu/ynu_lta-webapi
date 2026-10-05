@@ -54,6 +54,34 @@ export function accountRoutes(app: Application) {
             }
         });
     }));
+    // Rotate both the link and Firebase identity: a previous pending Google session
+    // must never become the next recipient's active identity. Existing migrations
+    // are deliberately excluded because their UID must be preserved.
+    app.post('/api/admin/account-invitations/:name/:action', wrap(async (req, res) => {
+        checkIfAuthenticatedAdmin(req, res, async actor => {
+            try {
+                let name: string;
+                try { name = username(req.params.name); } catch (_) { return res.sendStatus(400); }
+                const action = req.params.action;
+                if (action !== 'reissue' && action !== 'cancel') return res.sendStatus(400);
+                const filter = {scope: accountScope(), username: name, state: 'invited', migration: {$ne: true}};
+                const previous: any = await Account.findOne(filter).lean().exec();
+                if (!previous) return res.status(409).json({error: '未登録の新規招待のみ変更できます。既存アカウントの移行は対象外です。'});
+                const invitation = secret();
+                const id = 'u_' + randomBytes(16).toString('hex');
+                const expiresAt = new Date(Date.now() + 7 * 86400000);
+                const update = action === 'reissue'
+                    ? {$set: {uid: id, userId: id, invitationHash: digest(invitation), invitationExpiresAt: expiresAt, createdBy: actor}}
+                    : {$set: {state: 'disabled'}, $unset: {invitationHash: '', invitationExpiresAt: ''}};
+                const changed = await Account.findOneAndUpdate({...filter, uid: previous.uid, updatedAt: previous.updatedAt}, update, {new: true}).exec();
+                if (!changed) return res.status(409).json({error: '招待の状態が変わりました。再確認してください。'});
+                // An old Firebase UID has no active data identity, even if a concurrent
+                // bootstrap finishes later. Do not delete remote users during this operation.
+                if (action === 'cancel') return res.json({cancelled: true});
+                res.json({username: name, invitation, expiresAt});
+            } catch (_) { if (!res.headersSent) res.status(503).json({error: '招待を変更できませんでした。'}); }
+        });
+    }));
     // A pending Firebase session can only configure its own provider; the data API still denies it.
     app.post('/api/auth/invitation-google-session', wrap(async (req, res) => {
         const invitation = req.body && req.body.invitation;
