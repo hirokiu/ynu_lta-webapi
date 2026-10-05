@@ -17,10 +17,12 @@ rather than overwriting or treating them as application-source conflicts.
 Repository Compose uses configurable defaults of 384m/1.0; set Dev to 256m/0.75.
 No database limits or database restarts were performed. No host stress test was run.
 
-## Pending administrator installation
+## Administrator installation confirmed
 
 Files host-guard.py and install-host-guard.sh are placed in hiroki_u's home.
-Run `sudo bash ~/install-host-guard.sh` on uva.alchembright.com.
+Administrator ran `sudo bash ~/install-host-guard.sh` on uva.alchembright.com.
+Verified active/running, NRestarts=0, MemoryCurrent about 7 MiB, and SSH MemoryLow=64M / CPUWeight=1000.
+Detailed journal and private status content require sudo; they were not read from the unprivileged session.
 Installer copies root-owned code, enables a systemd service, and assigns SSH
 MemoryLow=64M and CPUWeight=1000 without restarting SSH.
 MemoryLow is best-effort cgroup protection, not a guarantee against every failure.
@@ -59,8 +61,19 @@ Host-side builds are already rejected below 4 GiB available RAM. Build images on
 Mac and deploy prebuilt images. Container limits plus the guard reduce risk but
 cannot guarantee SSH availability during kernel, disk, network or database failures.
 MongoDB and other host workloads still need measured capacity planning.
-CSV exports still collect results in memory. Implement streaming/bounded batches,
-concurrency limits and export memory telemetry before calling that risk resolved.
+CSV/JSON export now uses a batch-size-one database cursor and bounded disk-backed
+rows, then streams a completed file. One export per API is allowed; overlapping
+requests receive 429 with Retry-After. Capacity limits: 128 MiB intermediate/output,
+2,048 columns, 50,000 assignment IDs and 120 seconds generation time. These produce
+an explicit error, never a silently truncated download. The old 10,000-result cap
+is removed. Files are deleted on completion, cancellation and handled errors; an
+OS kill may leave private temporary files until container recreation.
+The legacy export endpoints use the same guard. CSV formatting parity and selection/
+date filters are tested. A 24,000-row synthetic export (about 94 MiB) completed
+with a 64 MiB JS heap and about 140 MiB peak process RSS on Mac; this is not a
+measurement of peak memory for every production survey. Real export telemetry logs
+row count, byte count, elapsed time and final RSS, excluding answer contents.
+Tests cover concurrency rejection, client disconnect and database-error cleanup.
 Add an explicitly agreed external alert channel, and assess RAM upgrade/swap based
 on measurements. Do not intentionally exhaust RAM on the live server.
 

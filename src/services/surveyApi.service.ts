@@ -1,7 +1,7 @@
 import { Request, Response, response } from "express";
 import { MongooseDocument, Mongoose, Error } from "mongoose";
 import { Model, Document, DocumentQuery } from "mongoose";
-const converter = require('json-2-csv');
+import { exportFile, ExportError } from '../utils/exportFile';
 
 var moment = require('moment-timezone');
 
@@ -1354,45 +1354,17 @@ private static getDatasetsOfAssignments(assignments: any) {
 
 
     public getAllDatasetsOfSurvey(req: Request, res: Response) {
-        SurveyService.dbgReq(req);
-        checkIfAuthenticatedAdmin(req, res, (uid: string) => {
-            SurveyService.dbgMsg("greetings admin " + uid + "!");
-
-            const surveyId = req.params.sid as String;
-
-            Assignment.find({ "survey._id": surveyId }, (error: Error, assignments: any) => {
-                if (error) {
-                    res.send(error);
-                } else {
-                    res.json(SurveyService.getDatasetsOfAssignments(assignments));
-                }
-            }).sort('-publishedAt');
-        });
+        SurveyService.legacyExport(req, res, 'json');
     }
-
     public getAllDatasetsOfSurveyCSV(req: Request, res: Response) {
-        SurveyService.dbgReq(req);
-        checkIfAuthenticatedAdmin(req, res, (uid: string) => {
-            SurveyService.dbgMsg("greetings admin " + uid + "!");
-            const surveyId = req.params.sid as String;
-
-            Assignment.find({ "survey._id": surveyId }, (error: Error, assignments: any) => {
-
-                if (error) {
-                    res.send(error);
-                } else {
-                    SurveyService.dbgMsg("found " + assignments.length + " assignments of survey " + surveyId);
-                    converter.json2csv(SurveyService.getDatasetsOfAssignments(assignments), (error: Error, csv: string) => {
-                        if (error) {
-                            res.send(error);
-                        } else {
-
-                            res.send(csv);
-                        }
-                    }, { "unwindArrays": true }
-                    );
-            }
-            }).sort('-publishedAt');
+        SurveyService.legacyExport(req, res, 'csv');
+    }
+    private static legacyExport(req: Request, res: Response, format: string) {
+        checkIfAuthenticatedAdmin(req, res, async () => {
+            if (!/^[a-f0-9]{24}$/i.test(req.params.sid)) { res.status(400).json({error: 'Invalid survey'}); return; }
+            await exportFile(res, async () => Assignment.find({"survey._id": req.params.sid})
+                .select('userId user dataset lastOpenedAt updatedAt').sort('-publishedAt')
+                .lean().maxTimeMS(60000).cursor({batchSize: 1}), format, SurveyService.getDatasetsOfAssignments);
         });
     }
 
@@ -1423,25 +1395,16 @@ private static getDatasetsOfAssignments(assignments: any) {
                 const options = exportOptions(req.method === 'POST' ? req.body : req.query, req.method === 'POST');
                 range = options.range; selectedIds = options.selectedIds;
             } catch (error) { res.status(400).json({ error: "Invalid export options" }); return; }
-            try {
-                // Only IDs are needed for the join; never load embedded questionnaires here.
-                const ids = await Assignment.find({ "survey._id": req.params.sid }).select("_id").lean().exec();
+            await exportFile(res, async () => {
+                const ids = await Assignment.find({ "survey._id": req.params.sid }).select("_id")
+                    .limit(50001).lean().maxTimeMS(15000).exec();
+                if (ids.length > 50000) throw new ExportError(413, 'Too many assignments for one export');
                 const filter: any = { assignment: { $in: ids.map((a: any) => a._id) }, "dataset.answers.0": { $exists: true } };
                 if (selectedIds) filter._id = { $in: selectedIds };
-                // Same timestamp precedence as the production CSV formatter.
                 if (range) filter.$or = [{ lastOpenedAt: range }, { lastOpenedAt: null, updatedAt: range }];
-                const results = await AssignmentResults.find(filter)
-                    .select("userId user dataset lastOpenedAt updatedAt").limit(10001).lean().maxTimeMS(60000).exec();
-                if (selectedIds && results.length !== selectedIds.length) { res.status(422).json({ error: "Selected answers are no longer available in this Survey" }); return; }
-                if (results.length > 10000) { res.status(413).json({ error: "More than 10000 results; select a shorter date range" }); return; }
-                const rows = SurveyService.getDatasetsOfAssignments(results);
-                if (format !== "csv") { res.json(rows); return; }
-                if (!rows.length) { res.type("text/csv").send(""); return; }
-                converter.json2csv(rows, (error: any, csv: string) => {
-                    if (error) { res.status(500).json({ error: "Could not generate export" }); return; }
-                    res.type("text/csv").send(csv);
-                }, { unwindArrays: true });
-            } catch (error) { console.error("Export failed", error instanceof global.Error ? error.message : "Unknown error"); res.status(500).json({ error: "Could not load export" }); }
+                return AssignmentResults.find(filter).select("userId user dataset lastOpenedAt updatedAt")
+                    .lean().maxTimeMS(60000).cursor({batchSize: 1});
+            }, String(format), SurveyService.getDatasetsOfAssignments, selectedIds && selectedIds.length);
         });
     }
 
