@@ -525,76 +525,30 @@ export class SurveyService {
     /* dataset */
 
     public addNewDataset(req: Request, res: Response) {
-        SurveyService.dbgReq(req);
-
-        // TODO: should auth the uid of the assignment, not the URL proclaimed uid, to be able to get assignment from aid only, not needing user
-
-        checkIfAuthenticatedUserIdOrAdmin(req.params.uid, req, res, (uid: string) => {
-            SurveyService.dbgMsg("zup " + uid + "!");
-
-            const condition = { "_id": req.params.aid };
-            const updateClause = { $set: { dataset: req.body } };
-
-            // TODO: rewrite for AR, don't post directly on group assignment!
-            // Assignment.findOneAndUpdate(condition, updateClause, (error: Error) => {
-            //     if (error) { res.send(error); }
-            //     else {
-            //         Assignment.findOne(condition, (error: Error, assignment: MongooseDocument) => {
-            //             if (error) {
-            //                 res.send(error);
-            //             } else {
-            //                 if (assignment) {
-            //                     res.json(assignment);
-            //                 } else {
-            //                     res.status(404).send("Assignment not found.");
-            //                 }
-            //             }
-            //         });
-            //     }
-            // });
-
-            // TODO: delete above when below rewrite works
-
-            Assignment.findOne(condition, (error: Error, assignment: MongooseDocument) => {
-                if (error) { res.send(error); } else {
-                    if (assignment) {
-                        const groupId = assignment.get("groupId");
-                        if (groupId) {
-
-                            AssignmentResults.findOneAndUpdate(
-                                { assignment: req.params.aid, userId: uid}, updateClause,
-                                (error: Error) => {
-                                    if (error) { console.log(error); }
-                                    else {
-                                        res.status(201).send("the Dataset has been stored.")
-                                    }
-                                })
-
-
-
-                        } else {
-                            Assignment.findOneAndUpdate(condition, updateClause, (error: Error) => {
-                                if (error) { res.send(error); }
-                                else {
-                                    Assignment.findOne(condition, (error: Error, assignment: MongooseDocument) => {
-                                        if (error) {
-                                            res.send(error);
-                                        } else {
-                                            if (assignment) {
-                                                res.json(assignment);
-                                            } else {
-                                                res.status(404).send("Assignment not found.");
-                                            }
-                                        }
-                                    });
-                                }
-                            });
-                        }
-                    } else {
-                        res.status(404).send("Assignment not found.");
-                    }
+        checkIfAuthenticatedUserIdOrAdmin(req.params.uid, req, res, async () => {
+            const targetUserId = req.params.uid;
+            if (!/^[a-f0-9]{24}$/i.test(req.params.aid) || !req.body || !Array.isArray(req.body.answers)) {
+                res.status(400).json({error: 'Invalid answer submission'}); return;
+            }
+            try {
+                const assignment: any = await Assignment.findById(req.params.aid).select('userId groupId').lean().exec();
+                if (!assignment) { res.sendStatus(404); return; }
+                const update = {$set: {dataset: {answers: req.body.answers}}};
+                if (assignment.groupId) {
+                    const member = await Group.exists({groupId: assignment.groupId, userIds: targetUserId});
+                    if (!member) { res.sendStatus(403); return; }
+                    const result = await AssignmentResults.findOneAndUpdate(
+                        {assignment: assignment._id, userId: targetUserId}, update, {new: true}).exec();
+                    if (!result) { res.status(404).json({error: 'Assignment recipient was not prepared'}); return; }
+                    res.status(201).send('the Dataset has been stored.');
+                } else {
+                    if (assignment.userId !== targetUserId) { res.sendStatus(403); return; }
+                    const result = await Assignment.findOneAndUpdate(
+                        {_id: assignment._id, userId: targetUserId}, update, {new: true}).exec();
+                    if (!result) { res.sendStatus(404); return; }
+                    res.json(result);
                 }
-            });
+            } catch (_) { res.status(500).json({error: 'Could not save answers'}); }
         });
     }
 

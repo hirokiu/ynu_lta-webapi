@@ -20,7 +20,7 @@ const firebasePath=require.resolve('../dist/services/firebaseAdmin.service');
 require.cache[firebasePath]={id:firebasePath,filename:firebasePath,loaded:true,exports:{__esModule:true,default:fake}};
 const {Controller}=require('../dist/main.controller');
 const {Account,AuthThrottle}=require('../dist/accounts/models');
-const {User}=require('../dist/models/survey.model');
+const {User,Assignment,AssignmentResults,Group}=require('../dist/models/survey.model');
 const {resolveAccountIdentity}=require('../dist/accounts/identity');
 const {secret,digest,passwordMatches,username}=require('../dist/accounts/credentials');
 let server;
@@ -30,7 +30,7 @@ let server;
  server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s))});
  const url='http://127.0.0.1:'+server.address().port;
  async function get(path,token){const r=await fetch(url+path,{headers:token?{token}:{}});return {status:r.status,body:await r.json()};}
- async function post(path,body,token){const r=await fetch(url+path,{method:'POST',headers:{'Content-Type':'application/json',...(token?{token}:{})},body:JSON.stringify(body)});const text=await r.text();return {status:r.status,body:text?JSON.parse(text):null,retryAfter:r.headers.get('retry-after')};}
+ async function post(path,body,token){const r=await fetch(url+path,{method:'POST',headers:{'Content-Type':'application/json',...(token?{token}:{})},body:JSON.stringify(body)});const text=await r.text();let parsed=null;try{parsed=text?JSON.parse(text):null}catch(_){parsed=text}return {status:r.status,body:parsed,retryAfter:r.headers.get('retry-after')};}
  await User.create({userId:'hanzawa',timezone:'Europe/Stockholm',deviceToken:'preserved'});
  await User.create({userId:'old_participant',deviceToken:'untouched'});
  const before=JSON.stringify(await User.find().sort('userId').lean());
@@ -54,6 +54,30 @@ let server;
  assert.equal(activated.filter(r=>r.status===503 && r.retryAfter==='2').length,1,'Busy password work returns a retry hint');
  assert.equal((await post('/api/auth/activate',{invitation:invite.body.invitation,password})).status,400);
  const active=await Account.findOne({username:'alice'}).select('+passwordHash +invitationHash').lean();
+ const own=await Assignment.create({userId:active.userId});
+ const other=await Assignment.create({userId:'old_participant'});
+ const answers={answers:[{index:1,type:'open',stringValue:'合成の回答'}]};
+ const submit=(aid,body=answers)=>post('/api/users/'+active.userId+'/assignments/'+aid+'/datasets',body,'issued:'+active.uid);
+ assert.equal((await submit(own._id)).status,200);
+ assert.equal((await submit(other._id)).status,403,'Cannot change another participant assignment using own URL');
+ assert.equal((await Assignment.findById(other._id)).dataset,undefined);
+ assert.equal((await submit(own._id,{})).status,400);
+ assert.equal((await submit('invalid')).status,400);
+ assert.equal((await submit('000000000000000000000000')).status,404);
+ assert.equal((await post('/api/users/old_participant/assignments/'+other._id+'/datasets',answers,'issued:'+active.uid)).status,401);
+ assert.equal((await post('/api/users/'+active.userId+'/assignments/'+own._id+'/datasets',answers)).status,401);
+ assert.equal((await post('/api/users/'+active.userId+'/assignments/'+own._id+'/datasets',answers,'owner')).status,200);
+ const group=await Group.create({groupId:'qa-group',userIds:[active.userId]});
+ const grouped=await Assignment.create({groupId:'qa-group'});
+ assert.equal((await submit(grouped._id)).status,404,'Missing recipient must not report saved');
+ const recipient=await AssignmentResults.create({assignment:grouped._id,userId:active.userId});
+ assert.equal((await submit(grouped._id)).status,201);
+ assert.equal((await AssignmentResults.findById(recipient._id)).dataset.answers[0].stringValue,'合成の回答');
+ assert.equal((await post('/api/users/'+active.userId+'/assignments/'+grouped._id+'/datasets',answers,'owner')).status,201,'Admin submission targets recipient, not the admin');
+ assert.equal(await AssignmentResults.countDocuments({assignment:grouped._id}),1);
+ await Group.updateOne({_id:group._id},{$set:{userIds:[]}});
+ assert.equal((await submit(grouped._id)).status,403,'Removed group members cannot submit');
+
  assert.equal(active.state,'active');assert.equal(active.invitationHash,undefined);assert.notEqual(active.passwordHash,password);
  assert(await passwordMatches(password,active.passwordHash));
  assert.deepEqual(await resolveAccountIdentity({uid:active.uid}),{userId:active.userId,isAdmin:false});
