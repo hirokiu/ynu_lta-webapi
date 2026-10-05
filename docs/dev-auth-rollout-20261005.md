@@ -47,3 +47,30 @@ Dev checkoutを0c884d7、Webを06a6bf7へ戻し、.envをops/state/pre-auth.env�
 公開待受は22/80/443。8081/8082および管理ポートはlocalhost、DBの27017はホスト公開されていない。非特権で読めるlast履歴は既知の接続元だが、SSH全認証履歴の代わりにはならない。sudo不可のため、管理者権限でSSH認証・前回カーネルエラー・SSH設定・鍵指紋・永続化設定・ファイアウォールを集計するreadonly-host-audit.shを配置し利用者に実行依頼。結果未確認の間は不正アクセスなしと断定せず、Dev更新を再開しない。
 
 配備スクリプトにdeploy-imagesを追加。既存イメージを検査し、バックアップ後 --no-build --pull never で起動する。Linuxのホストビルドは利用可能メモリー4GiB未満で拒否し、許可条件でもAPIとWebを順番にビルドする。この閾値は十分性を保証するものではなく、今回の小容量共有サーバーを除外する予防策。新手順の実デプロイは監査後に実施する。
+
+## 管理者監査の確認結果（2026-10-05 22:58 JST）
+
+利用者が読み取り監査を実行し、結果ファイルを確認した。2026-09-17〜10-05のSSHログ89,100行では、成功はhiroki_uの公開鍵認証のみ、接続元はこれまでの作業履歴と整合する2アドレス。失敗関連行23,479行（重複を含み試行回数とは異なる）は存在するが、他の成功ユーザー/接続元は記録されていない。rootログイン・パスワード・keyboard-interactiveは無効で、認証方法はpublickey。
+
+登録鍵はdebian/hiroki_uに同じ1本ずつで、更新日時は初期構築時。確認したサービス・タイマー・cronメタデータに明らかな不審項目なし。IPv4/IPv6 INPUTは原則dropで22/80/443を許可。DBはホスト非公開、Dev/Proto Webはlocalhost公開。カーネル抽出ログにOOMやI/Oエラーは記録されておらず、メモリー不足による停止は依然推定。これはログと構成の限定的調査であり、不正アクセスや改ざんの不存在を証明するものではない。
+
+Devの3コレクション、Protoの5コレクションに時間制限付き非full validateを実行し全件valid=true。ProtoはSurvey56、ユーザー45、Group12、Assignment4,182、AssignmentResult4,651、DevはSurvey/Assignment各6・User1を読取確認（復旧時点）。全件内容の移行照合とは別のストレージ整合性確認である。
+
+監査でKIROKUN用バックアップ/再起動systemd timerは見えていない。最終移行前に新サーバー向け定期処理の有効化確認が必要。今回タイマーやSSH/ファイアウォールの設定変更は行っていない。
+
+## Dev再配備と実Firebase検証完了（2026-10-05 23:07〜JST）
+
+監査・復旧確認後、MacのDocker（メモリー約16GB）でlinux/amd64イメージを順番に作成した。API/Webをdev-auth-d256572として保存し、115MBの圧縮アーカイブを転送、SHA-256照合後にdocker load。サーバー上のビルドは行っていない。
+
+- Dev API checkout: d256572、Web: 5b2af9d。
+- API image ID: ed06c4117d85c1105cb16e7709b3f3ce317d505b231722122f21d43a522982d9。
+- Web image ID: bd6d54f63a9fd037803b4a73ce6b1ad21ebdc5cff73226636b0f46a06c779368。
+- 配備前Devバックアップ: backups/survey-20261005T140728Z-16253.archive.gz。生成時のgzip・SHA-256検査あり、この新アーカイブの別DB復元テストは未実施。
+- deploy-imagesでDevのみ更新。Dev API/Web/Mongo healthy、Protoイメージ・コンテナーは変更なし。
+- Firebase kirokun-dev、ACCOUNT_SCOPE=dev。招待・再設定・Google登録モジュール有効。通知と自動配信は引き続きfalse。
+- 実Firebaseで招待→パスワード登録→/me→本人Survey一覧取得→管理者操作拒否→再設定→旧パスワード拒否→新パスワード成功→旧カスタムセッション拒否→リンク再利用拒否をすべて確認した。Google Popup・モバイルUIの検証とは別。
+- 実行前から存在するDevの全利用者/Survey/Assignment等を文書単位で照合し、不変を確認。テスト用回答者1件だけ追加して保持。
+- テスト認証情報はDevサーバーのops/state/auth-test-account.jsonへ0600で保存。Git・チャットへ出していない。既存アカウントのパスワード・Google連携は変更していない。
+- 終了時の利用可能メモリー約1.2GB、サービス正常。Protoの公開ヘルスチェックも成功。
+
+残作業: Devアプリでのログイン/回答UI、Google実連携、通知経路、ProtoのGoogle設定ファイルと入口、新サーバーの定期バックアップ/再起動タイマー有効化、Proto配備前の全既存UID対応・データ差分確認。Protoと旧サーバーの最終移行は未実施。
