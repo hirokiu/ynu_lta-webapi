@@ -106,3 +106,9 @@ container identity checking (3 passing tests). Installer shell syntax checked.
   release after review; do not accidentally enable account migration as part of it.
 - Build still reports existing legacy dependency vulnerabilities and Web bundle
   size warnings. This export fix is not a dependency upgrade.
+
+## Subsequent Proto rollout
+
+2026-10-06: the export fix is now deployed to Proto as proto-export-c7f2531,
+without the account migration feature. Full before/after output parity and backup
+restore succeeded. See [proto-export-release-20261006.md](proto-export-release-20261006.md).
