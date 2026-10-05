@@ -19,7 +19,7 @@ import {
 
 import admin from "./firebaseAdmin.service";
 import { pageOptions, literalSearch, dateRange, exportOptions } from "../utils/query";
-import { resolveIdentity } from "../utils/identity";
+import { resolveAccountIdentity } from "../accounts/identity";
 import Rand, { PRNG } from 'rand-seed';
 
 export const getAuthToken = (req: Request, res: Response, callback: (ah: any) => void) => {
@@ -36,7 +36,7 @@ export const checkIfAuthenticatedAdmin = (req: Request, res: Response, callback:
                 .auth()
                 .verifyIdToken(ah, process.env.AUTH_MODE === "uid");
 
-            const identity = resolveIdentity(userInfo);
+            const identity = await resolveAccountIdentity(userInfo);
             const verifiedUserId = identity.userId;
 
             if (!identity.isAdmin) {
@@ -60,7 +60,7 @@ export const checkIfAuthenticatedUserIdOrAdmin = (userId: String, req: Request, 
                 .auth()
                 .verifyIdToken(ah, process.env.AUTH_MODE === "uid");
 
-            const identity = resolveIdentity(userInfo);
+            const identity = await resolveAccountIdentity(userInfo);
             const verifiedUserId = identity.userId;
 
             if (verifiedUserId != userId && !identity.isAdmin) {
@@ -83,7 +83,7 @@ export const getAuthenticatedUserId = (req: Request, res: Response, callback: (u
                 .auth()
                 .verifyIdToken(ah, process.env.AUTH_MODE === "uid");
 
-            const identity = resolveIdentity(userInfo);
+            const identity = await resolveAccountIdentity(userInfo);
             const verifiedUserId = identity.userId;
 
             return callback(verifiedUserId);
