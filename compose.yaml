@@ -18,6 +18,10 @@ services:
     build: .
     restart: unless-stopped
     init: true
+    mem_limit: ${API_MEMORY_LIMIT:-384m}
+    memswap_limit: ${API_MEMORY_LIMIT:-384m}
+    cpus: ${API_CPU_LIMIT:-1.0}
+    pids_limit: 256
     environment:
       MONGO_URL: mongodb://mongodb:27017/Survey
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase

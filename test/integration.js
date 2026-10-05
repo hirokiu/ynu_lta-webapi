@@ -25,11 +25,19 @@ async function main() {
  const savedResults = await AssignmentResults.insertMany(results);
  const app=express();app.use(express.json());new Controller(app);const server=app.listen(0,'127.0.0.1');
  await new Promise(resolve=>server.once('listening',resolve));
- const request=(path,token='test-only',data)=>new Promise((resolve,reject)=>{
+ const requestOnce=(path,token='test-only',data)=>new Promise((resolve,reject)=>{
   const body=data===undefined?undefined:JSON.stringify(data);
   const req=http.request({hostname:'127.0.0.1',port:server.address().port,path,method:body?'POST':'GET',headers:{token,'Content-Type':'application/json'}},res=>{let text='';res.on('data',c=>text+=c);res.on('end',()=>resolve({status:res.statusCode,text,json:()=>JSON.parse(text)}));});
   req.on('error',reject);req.end(body);
  });
+ const request=async (...args)=>{
+  for(let attempt=0;attempt<20;attempt++) {
+   const result=await requestOnce(...args);
+   if(result.status!==429) return result;
+   await new Promise(resolve=>setTimeout(resolve,20));
+  }
+  throw Error('Export slot was not released');
+ };
  try {
   assert.equal((await request('/api/admin/assignments','bad')).status,401);
   let first=(await request('/api/admin/assignments?limit=50')).json();
@@ -42,6 +50,11 @@ async function main() {
   const csv=await request(`/api/surveys/${survey._id}/datasets/results/csv?from=2026-01-02T00:00:00Z&to=2026-01-02T23:59:59Z`);
   assert.equal(csv.status,200,csv.text);assert(csv.text.includes('回答者ID'));assert(csv.text.includes('2026-01-02 09:00:00'));assert(csv.text.includes('1.50 (90s)'));assert(!csv.text.includes('other'));
   assert.equal((await request(`/api/surveys/${survey._id}/datasets/results/csv?from=bad`)).status,400);
+  const allCsv=await request(`/api/surveys/${survey._id}/datasets/results/csv`);
+  const expectedCsv=await new Promise((resolve,reject)=>require('json-2-csv').json2csv(SurveyService.getDatasetsOfAssignments(results),(err,text)=>err?reject(err):resolve(text),{unwindArrays:true}));
+  assert.equal(allCsv.status,200);
+  assert.equal(allCsv.text,expectedCsv,'CSV must match the original formatter across sparse/multi-value columns');
+
   const mine=(await request('/api/users/hiroki_u/allassignments')).json();assert.equal(mine.length,110);assert.equal(mine.find(a=>a._id===String(assignments[0]._id)).dataset.answers.length,2);
   for(const size of [10,20,50,100]) assert.equal((await request('/api/admin/assignments?limit='+size)).json().items.length,size);
   const resultPage=(await request(`/api/surveys/${survey._id}/results?limit=1`)).json();
