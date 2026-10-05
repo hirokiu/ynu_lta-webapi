@@ -138,6 +138,28 @@ let server;
  assert.deepEqual(await resolveAccountIdentity({uid:'legacy'}),{userId:'old_participant',isAdmin:false});
  assert.equal(JSON.stringify(await User.find({userId:{$in:['hanzawa','old_participant']}}).sort('userId').lean()),before);
  for(let i=0;i<11;i++){const r=await post('/api/auth/username-login',{username:'missing',password});if(i===10)assert.equal(r.status,429);}
+ // Independent capability policies must not change established identities or login.
+ const featureSnapshot=JSON.stringify(await Account.find().sort('username').lean());
+ process.env.ACCOUNT_INVITATIONS_ENABLED='false';
+ for (const path of ['/api/admin/account-invitations','/api/admin/account-invitations/expired/reissue','/api/auth/activate','/api/auth/activate-google','/api/auth/invitation-google-session'])
+   assert.equal((await post(path,{},'owner')).status,404);
+ assert.equal((await post('/api/auth/username-login',{username:'hanzawa',password})).status,200);
+ assert.deepEqual(await resolveAccountIdentity({uid:'researcher'}),{userId:'hanzawa',isAdmin:true});
+ process.env.ACCOUNT_PASSWORD_RESET_ENABLED='false';
+ assert.equal((await post('/api/admin/password-resets',{},'owner')).status,404);
+ assert.equal((await post('/api/auth/reset-password',{})).status,404);
+ await assert.rejects(recoverAccount('issue','hanzawa','/unused-reset-file'));
+ process.env.ACCOUNT_INVITATIONS_ENABLED='true';
+ process.env.ACCOUNT_GOOGLE_REGISTRATION_ENABLED='false';
+ assert.equal((await post('/api/auth/invitation-google-session',{})).status,404);
+ assert.equal((await post('/api/auth/activate-google',{})).status,404);
+ assert.equal((await post('/api/auth/activate',{})).status,400);
+ const options=await (await fetch(url+'/api/auth/options')).json();
+ assert.deepEqual(options,{usernameLogin:true,invitations:true,passwordReset:false,googleRegistration:false});
+ // Only successful login timestamps may change; switching settings does not mutate data.
+ const stable=rows=>JSON.stringify(rows.map(({lastUsernameLoginAt,updatedAt,...rest})=>rest));
+ assert.equal(stable(JSON.parse(featureSnapshot)),stable(await Account.find().sort('username').lean()));
+ delete process.env.ACCOUNT_INVITATIONS_ENABLED;delete process.env.ACCOUNT_PASSWORD_RESET_ENABLED;delete process.env.ACCOUNT_GOOGLE_REGISTRATION_ENABLED;
  process.env.USERNAME_ACCOUNTS_ENABLED='false';
  assert.equal((await post('/api/auth/username-login',{username:'alice',password})).status,404);
  assert.deepEqual(await resolveAccountIdentity({uid:'legacy'}),{userId:'old_participant',isAdmin:false});

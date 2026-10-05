@@ -110,3 +110,33 @@ node dist/accounts/recovery.js issue hanzawa /private-output/hanzawa-reset.json
 5. 失敗したら出力ファイルがあっても配布しない。状態を再確認し、問題を解消して別の新規出力ファイルで再実行する。手動で state だけを active に変更しない。
 
 ローカル隔離DBとFirebaseモックで、停止宣言なしの拒否、recovering→再設定→ログイン成功、旧パスワード拒否、ファイル権限0600、研究者のUID・管理権限・既存データ保全を検証済み。APIビルド成功。実Firebaseの失効動作・運用リハーサル・アプリの新認証対応は引き続き公開前の必須事項。
+
+## 環境別の機能モジュール（2026-10-05）
+
+`src/accounts/features.ts` が登録・復旧機能の提供可否をまとめ、`/api/auth/options` を管理画面が参照する。機能を止めてもレコードは削除しない。APIは無効な操作を404で拒否し、直接URL・HTTPで呼んでも実行できない。
+
+| 設定 | false の場合 |
+|---|---|
+| ACCOUNT_INVITATIONS_ENABLED | 招待発行・再発行・取消、パスワード/Googleによる登録完了を停止 |
+| ACCOUNT_GOOGLE_REGISTRATION_ENABLED | Googleによる新規登録のみ停止。パスワード登録は可能 |
+| ACCOUNT_PASSWORD_RESET_ENABLED | 再設定リンク発行・使用とオペレーター再設定/修復を停止。inspect は可能 |
+
+未指定は互換性のためtrue。明示値はtrue/falseを使う。その他の値は無効として扱う。これらは従来の USERNAME_ACCOUNTS_ENABLED=true かつ AUTH_MODE=uid の場合だけ有効。招待を止めている間にリンクの有効期限は延長されず、再開しても期限切れのリンクは使えない。停止前に不要な招待を取り消す。再設定停止前にはrecovering状態がないことを確認し、障害復旧が必要なら再設定機能を有効に戻して対応する。
+
+### 設定例
+
+Devで全機能を試用する場合は3項目すべてtrue。Protoで新規受付を止め、既存のログインと復旧を維持する場合は以下。
+
+```dotenv
+ACCOUNT_INVITATIONS_ENABLED=false
+ACCOUNT_GOOGLE_REGISTRATION_ENABLED=false
+ACCOUNT_PASSWORD_RESET_ENABLED=true
+```
+
+環境固有の `.env` を変更し、対象APIコンテナーを再作成して反映する。単なる再起動ではComposeの新しい環境変数が反映されない。API更新後、管理画面を再読み込みしてボタン表示と `/api/auth/options` を確認する。データベースの初期化や認証プロバイダーの削除は不要。今回、公開環境の設定変更は実施していない。
+
+### 今回の範囲と制限
+
+新規受付と復旧の切り替えを実装した。既存のユーザー名ログイン・Googleログイン・追加連携は個別停止の対象外。登録後に総スイッチUSERNAME_ACCOUNTS_ENABLEDをfalseにすると既存新規ユーザーも利用できなくなるため、受付停止にこの総スイッチを使用しない。ログイン方式の無効化は、各利用者の代替ログイン方法を検査する仕組みを整備してから追加する。Firebase SDKからのGoogle連携自体はAPIを経由しないため、画面を非表示にするだけでは禁止できない。今回のGoogle登録スイッチは新規のデータ利用権限の有効化をAPIで停止するもので、Firebaseプロバイダーの制御ではない。
+
+ローカルの統合テストで各無効APIの拒否、既存ログイン・管理権限の維持、設定変更時のアカウント保全、公開設定値を検証。API/Webビルド成功。実環境の適用・ブラウザーQA・モバイル対応は未実施。

@@ -1,3 +1,4 @@
+import { accountFeatures, AccountFeature } from './features';
 import { Application, Request, Response } from 'express';
 import { randomBytes } from 'crypto';
 import admin from '../services/firebaseAdmin.service';
@@ -9,16 +10,16 @@ import { username, validPassword, passwordHash, passwordMatches, digest, secret 
 export function accountRoutes(app: Application) {
     let ready: Promise<any> | undefined;
     const prepare = () => ready || (ready = Promise.all([Account.createIndexes(), AuthThrottle.createIndexes()]).catch(error => { ready = undefined; throw error; }));
-    app.get('/api/auth/options', (_req, res) => res.set('Cache-Control', 'no-store').json({usernameLogin: accountsEnabled()}));
+    app.get('/api/auth/options', (_req, res) => res.set('Cache-Control', 'no-store').json(accountFeatures()));
     const limited = async (key: string, maximum: number) => {
         const bucket = Math.floor(Date.now() / 600000);
         const count: any = await AuthThrottle.findOneAndUpdate({_id: digest(key) + ':' + bucket},
             {$inc: {count: 1}, $setOnInsert: {expiresAt: new Date((bucket + 2) * 600000)}}, {upsert: true, new: true}).lean().exec();
         return count.count <= maximum;
     };
-    const wrap = (handler: (req: Request, res: Response) => Promise<any>) => async (req: Request, res: Response) => {
+    const wrap = (handler: (req: Request, res: Response) => Promise<any>, feature?: AccountFeature) => async (req: Request, res: Response) => {
         res.set('Cache-Control', 'no-store');
-        if (!accountsEnabled()) return res.status(404).json({error: 'この機能は現在利用できません。'});
+        if (!accountsEnabled() || (feature && !accountFeatures()[feature])) return res.status(404).json({error: 'この機能は現在利用できません。'});
         try { accountScope(); await prepare(); await handler(req, res); }
         catch (_) { if (!res.headersSent) res.status(503).json({error: '処理できませんでした。時間をおいて再試行してください。'}); }
     };
@@ -53,7 +54,7 @@ export function accountRoutes(app: Application) {
                 res.status(e.code === 11000 ? 409 : 503).json({error: '招待を作成できませんでした。ユーザー名の重複などを確認してください。'});
             }
         });
-    }));
+    }, 'invitations'));
     // Rotate both the link and Firebase identity: a previous pending Google session
     // must never become the next recipient's active identity. Existing migrations
     // are deliberately excluded because their UID must be preserved.
@@ -81,7 +82,7 @@ export function accountRoutes(app: Application) {
                 res.json({username: name, invitation, expiresAt});
             } catch (_) { if (!res.headersSent) res.status(503).json({error: '招待を変更できませんでした。'}); }
         });
-    }));
+    }, 'invitations'));
     // A pending Firebase session can only configure its own provider; the data API still denies it.
     app.post('/api/auth/invitation-google-session', wrap(async (req, res) => {
         const invitation = req.body && req.body.invitation;
@@ -95,7 +96,7 @@ export function accountRoutes(app: Application) {
         try { await admin.auth().createUser({uid: account.uid}); }
         catch (e) { if (e.code !== 'auth/uid-already-exists') throw e; }
         res.json({customToken: await admin.auth().createCustomToken(account.uid, {credentialVersion: account.credentialVersion || 0})});
-    }));
+    }, 'googleRegistration'));
     app.post('/api/auth/activate-google', wrap(async (req, res) => {
         const invitation = req.body && req.body.invitation;
         if (typeof invitation !== 'string' || !/^[a-f0-9]{64}$/.test(invitation)) return res.sendStatus(400);
@@ -115,7 +116,7 @@ export function accountRoutes(app: Application) {
             $unset: {invitationHash: '', invitationExpiresAt: ''}}, {new: true}).exec();
         if (!updated) return res.status(409).json({error: 'この招待はすでに使用されています。'});
         res.json({username: account.username});
-    }));
+    }, 'googleRegistration'));
     app.post('/api/auth/activate', wrap(async (req, res) => {
         const invitation = req.body && req.body.invitation;
         const password = req.body && req.body.password;
@@ -139,7 +140,7 @@ export function accountRoutes(app: Application) {
             $unset: {invitationHash: '', invitationExpiresAt: ''}}, {new: true}).exec();
         if (!updated) return res.status(409).json({error: 'この招待はすでに使用されています。ログインしてください。'});
         res.json({customToken: token, username: account.username});
-    }));
+    }, 'invitations'));
     app.post('/api/admin/password-resets', wrap(async (req, res) => {
         checkIfAuthenticatedAdmin(req, res, async actor => {
             try {
@@ -156,7 +157,7 @@ export function accountRoutes(app: Application) {
                 res.json({reset, expiresAt});
             } catch (_) { if (!res.headersSent) res.status(503).json({error: '再設定リンクを発行できませんでした。'}); }
         });
-    }));
+    }, 'passwordReset'));
     app.post('/api/auth/reset-password', wrap(async (req, res) => {
         const reset = req.body && req.body.reset;
         const password = req.body && req.body.password;
@@ -174,7 +175,7 @@ export function accountRoutes(app: Application) {
             {$set: {passwordHash: hash, state: 'active'}, $inc: {credentialVersion: 1},
                 $unset: {resetHash: '', resetExpiresAt: ''}}).exec();
         res.json({message: 'パスワードを再設定しました。新しいパスワードでログインしてください。'});
-    }));
+    }, 'passwordReset'));
     app.post('/api/auth/username-login', wrap(async (req, res) => {
         let name: string;
         try { name = username(req.body && req.body.username); }

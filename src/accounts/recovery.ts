@@ -1,3 +1,4 @@
+import { accountFeatures } from './features';
 /** Operator-only recovery; stop API workers before invoking repair. */
 import { writeFileSync } from 'fs';
 import mongoose from 'mongoose';
@@ -20,6 +21,7 @@ export async function recoverAccount(operation: string, name: string, output?: s
     const firebaseUser = await admin.auth().getUser(account.uid);
     if (firebaseUser.disabled) throw new Error('Firebase user is disabled');
     if (operation === 'inspect') return {username: name, state: account.state, migration: !!account.migration};
+    if (!accountFeatures().passwordReset) throw new Error('Password recovery is disabled');
     if (!output || !['issue', 'repair'].includes(operation)) throw new Error('Use inspect, issue or repair with a private output file');
     if (operation === 'issue' && account.state !== 'active') throw new Error('Only active accounts may receive a reset link');
     if (operation === 'repair' && (account.state !== 'recovering' || !apiStopped))
