@@ -30,7 +30,7 @@ let server;
  server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s))});
  const url='http://127.0.0.1:'+server.address().port;
  async function get(path,token){const r=await fetch(url+path,{headers:token?{token}:{}});return {status:r.status,body:await r.json()};}
- async function post(path,body,token){const r=await fetch(url+path,{method:'POST',headers:{'Content-Type':'application/json',...(token?{token}:{})},body:JSON.stringify(body)});const text=await r.text();return {status:r.status,body:text?JSON.parse(text):null};}
+ async function post(path,body,token){const r=await fetch(url+path,{method:'POST',headers:{'Content-Type':'application/json',...(token?{token}:{})},body:JSON.stringify(body)});const text=await r.text();return {status:r.status,body:text?JSON.parse(text):null,retryAfter:r.headers.get('retry-after')};}
  await User.create({userId:'hanzawa',timezone:'Europe/Stockholm',deviceToken:'preserved'});
  await User.create({userId:'old_participant',deviceToken:'untouched'});
  const before=JSON.stringify(await User.find().sort('userId').lean());
@@ -51,6 +51,7 @@ let server;
  assert.equal((await post('/api/auth/activate',{invitation:invite.body.invitation,password:'short'})).status,400);
  const activated=await Promise.all([1,2].map(()=>post('/api/auth/activate',{invitation:invite.body.invitation,password})));
  assert.equal(activated.filter(r=>r.status===200).length,1);
+ assert.equal(activated.filter(r=>r.status===503 && r.retryAfter==='2').length,1,'Busy password work returns a retry hint');
  assert.equal((await post('/api/auth/activate',{invitation:invite.body.invitation,password})).status,400);
  const active=await Account.findOne({username:'alice'}).select('+passwordHash +invitationHash').lean();
  assert.equal(active.state,'active');assert.equal(active.invitationHash,undefined);assert.notEqual(active.passwordHash,password);

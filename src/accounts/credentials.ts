@@ -8,9 +8,22 @@ export function validPassword(value: unknown): value is string {
 }
 export const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 export const secret = () => randomBytes(32).toString('hex');
-const derive = (password: string, salt: string): Promise<Buffer> => new Promise((resolve, reject) => {
-    scrypt(password, salt, 64, {N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024}, (error, key) => error ? reject(error) : resolve(key));
-});
+// scrypt allocates tens of MiB per job. Reject excess work instead of keeping
+// passwords in an unbounded queue alongside exports on a small API container.
+export class PasswordWorkBusy extends Error {
+    constructor() { super('Password service busy'); Object.setPrototypeOf(this, PasswordWorkBusy.prototype); }
+}
+let deriving = false;
+async function derive(password: string, salt: string): Promise<Buffer> {
+    if (deriving) throw new PasswordWorkBusy();
+    deriving = true;
+    try {
+        return await new Promise<Buffer>((resolve, reject) => {
+            scrypt(password, salt, 64, {N: 32768, r: 8, p: 3, maxmem: 64 * 1024 * 1024},
+                (error, key) => error ? reject(error) : resolve(key));
+        });
+    } finally { deriving = false; }
+}
 export async function passwordHash(password: string): Promise<string> {
     if (!validPassword(password)) throw new Error('Invalid password');
     const salt = randomBytes(16).toString('hex');

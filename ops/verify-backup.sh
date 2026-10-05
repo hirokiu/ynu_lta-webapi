@@ -11,7 +11,7 @@ cleanup() { docker rm -fv "$name" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-docker run -d --name "$name" --network none mongo:4.2.24 >/dev/null
+docker run -d --name "$name" --network none --memory 512m --memory-swap 512m --cpus 0.5 --pids-limit 128 mongo:4.2.24 --wiredTigerCacheSizeGB 0.25 >/dev/null
 for attempt in $(seq 1 60); do
   if docker exec "$name" mongo --quiet --eval 'quit(db.adminCommand("ping").ok ? 0 : 1)' >/dev/null 2>&1; then break; fi
   sleep 2

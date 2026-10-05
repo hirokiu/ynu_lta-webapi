@@ -5,7 +5,7 @@ import admin from '../services/firebaseAdmin.service';
 import { User } from '../models/survey.model';
 import { checkIfAuthenticatedAdmin } from '../services/surveyApi.service';
 import { Account, AuthThrottle, accountsEnabled, accountScope } from './models';
-import { username, validPassword, passwordHash, passwordMatches, digest, secret } from './credentials';
+import { username, validPassword, passwordHash, passwordMatches, digest, secret, PasswordWorkBusy } from './credentials';
 
 export function accountRoutes(app: Application) {
     let ready: Promise<any> | undefined;
@@ -21,7 +21,11 @@ export function accountRoutes(app: Application) {
         res.set('Cache-Control', 'no-store');
         if (!accountsEnabled() || (feature && !accountFeatures()[feature])) return res.status(404).json({error: 'この機能は現在利用できません。'});
         try { accountScope(); await prepare(); await handler(req, res); }
-        catch (_) { if (!res.headersSent) res.status(503).json({error: '処理できませんでした。時間をおいて再試行してください。'}); }
+        catch (error) {
+            if (res.headersSent) return;
+            if (error instanceof PasswordWorkBusy) res.set('Retry-After', '2');
+            res.status(503).json({error: '処理できませんでした。時間をおいて再試行してください。'});
+        }
     };
     const publicLimit = async (req: Request, res: Response, key: string) => {
         if (!await limited('ip:' + req.ip, 100) || !await limited('account:' + key, 10)) {
