@@ -1362,154 +1362,56 @@ private static getDatasetsOfAssignments(assignments: any) {
         });
     }
 
-    public FindRegistrationTokensForNotification(
-        messageCallback:
-            (
-                deviceRegistrationToken: string,
-                title: String,
-                body: String
-            ) => void
-    ) {
-        var from = moment().utc().add(-NOTIFY_PUBLISH_SINCE_MINUTES, "m");
-        var to = moment().utc();
+    private notificationPassRunning = false;
 
-        AssignmentResults.find({
-            publishAt: {
-                $gte: from,
-                $lte: to
-            },
-            publishNotifiedAt: { $exists: false }
-        }, (error: Error, assignmentResults: any) => {
-            if (error) {
-                console.log(error);
-            } else {
-                if (assignmentResults.length == 0) {
-                    SurveyService.dbgMsg("None AssignmentResults to publish found. ");
+    public async FindRegistrationTokensForNotification(
+        messageCallback: (token: string, title: string, body: string) => Promise<boolean>
+    ): Promise<void> {
+        // Avoid overlapping timer passes within the single API process.
+        if (this.notificationPassRunning) return;
+        this.notificationPassRunning = true;
+        try {
+            const now = moment().utc();
+            for (const expiring of [false, true]) {
+                const dateField = expiring ? 'expireAt' : 'publishAt';
+                const marker = expiring ? 'expireNotifiedAt' : 'publishNotifiedAt';
+                const condition: any = {
+                    [dateField]: expiring
+                        ? {$gte: now.toDate(), $lte: now.clone().add(NOTIFY_EXPIRE_IN_MINUTES, 'm').toDate()}
+                        : {$gte: now.clone().subtract(NOTIFY_PUBLISH_SINCE_MINUTES, 'm').toDate(), $lte: now.toDate()},
+                    [marker]: {$exists: false}
+                };
+                if (expiring) condition.dataset = {$exists: false};
+                for (const grouped of [false, true]) {
+                    const model: any = grouped ? AssignmentResults : Assignment;
+                    const filter = grouped ? condition : {...condition, groupId: {$in: [null, '']}};
+                    let query = model.find(filter).sort('_id');
+                    if (grouped) query = query.populate('assignment');
+                    const cursor = query.lean().cursor({batchSize: 1});
+                    try {
+                        for (let record = await cursor.next(); record; record = await cursor.next()) {
+                            const assignment = grouped ? record.assignment : record;
+                            if (!assignment || !assignment.survey || !record.userId) continue;
+                            const user: any = await User.findOne({userId: record.userId}).select('deviceToken').lean().exec();
+                            if (!user || !user.deviceToken) continue;
+                            const survey = assignment.survey;
+                            let accepted = false;
+                            try {
+                                accepted = await messageCallback(user.deviceToken,
+                                    expiring ? survey.expireNotificationTitle : survey.publishNotificationTitle,
+                                    expiring ? survey.expireNotificationBody : survey.publishNotificationBody);
+                            } catch (_) { /* Leave unmarked for a later timer pass. */ }
+                            if (accepted) {
+                                await model.updateOne({_id: record._id, [marker]: {$exists: false}},
+                                    {$set: {[marker]: new Date()}}).exec();
+                            }
+                        }
+                    } finally { await cursor.close(); }
                 }
-
-                assignmentResults.forEach((ar: any) => {
-
-                    SurveyService.dbgMsg("Found ar:")
-                    
-                    var assignmentId: string = ar.assignment._id;
-                    var title: string = ar.assignment.survey.publishNotificationTitle;
-                    var body: string = ar.assignment.survey.publishNotificationBody;
-
-                    this.getDeviceRegistrationTokenFromUserId(ar.userId, (registrationToken) => {
-                        SurveyService.dbgMsg(`Found ${assignmentId} for ${ar.userId} with devregtoken ${registrationToken}`);
-                        messageCallback(registrationToken, title, body);
-                        this.setAssignmentResult(ar._id, { $set: { publishNotifiedAt: new Date() } }); // TO DO can this be set directly on AR without a new query
-                    });
-                });
             }
-
-        }).populate('assignment')
-
-        SurveyService.dbgMsg(`Checking for publishAt within ${from} and ${to} but not yet notified. `);
-
-        Assignment.find({
-            publishAt: {
-                $gte: from,
-                $lte: to
-            },
-            publishNotifiedAt: { $exists: false }
-        }, (error: Error, assignments: any) => {
-            if (error) {
-                console.log(error);
-            } else {
-
-                if (assignments.length == 0) {
-                    SurveyService.dbgMsg("None Published found. ");
-                }
-
-                assignments.forEach((a: any) => {
-
-                    var assignmentId: string = a._id;
-                    var title: string = a.survey.publishNotificationTitle;
-                    var body: string = a.survey.publishNotificationBody;
-
-                    SurveyService.dbgMsg("publishNotificationTitle: " + title);
-
-                    this.getDeviceRegistrationTokenFromUserId(a.userId, (registrationToken) => {
-                        SurveyService.dbgMsg(`Found Published ${registrationToken} : ${assignmentId}`);
-                        SurveyService.dbgMsg("publishNotificationTitle: " + title);
-                        messageCallback(registrationToken, title, body);
-                        this.setAssignment(assignmentId, { $set: { publishNotifiedAt: new Date() } });
-                    });
-                });
-            }
-
-        }).sort('-createdAt');
-
-        var from = moment().utc();
-        var to = moment().utc().add(NOTIFY_EXPIRE_IN_MINUTES, "m");;
-
-        SurveyService.dbgMsg(`Checking for Expiring within ${from} and ${to} but not yet notified. `);
-
-        Assignment.find({
-            expireAt: {
-                $gte: from,
-                $lte: to
-            },
-            expireNotifiedAt: { $exists: false },
-            dataset: { $exists: false }
-        }, (error: Error, assignments: any) => {
-            if (error) {
-                console.log(error);
-            } else {
-
-                if (assignments.length == 0) {
-                    SurveyService.dbgMsg("None expiring found. ");
-                }
-
-                assignments.forEach((a: any) => {
-
-                    var assignmentId: string = a._id;
-                    var title: string = a.survey.expireNotificationTitle;
-                    var body: string = a.survey.expireNotificationBody;
-
-                    this.getDeviceRegistrationTokenFromUserId(a.userId, (registrationToken) => {
-                        SurveyService.dbgMsg(`Found expiring ${registrationToken} : ${assignmentId}`);
-                        messageCallback(registrationToken, title, body);
-                        this.setAssignment(assignmentId, { $set: { expireNotifiedAt: new Date() } });
-                    });
-                });
-            }
-        }).sort('-createdAt');
-
-        AssignmentResults.find({
-            expireAt: {
-                $gte: from,
-                $lte: to
-            },
-            expireNotifiedAt: { $exists: false },
-            dataset: { $exists: false }
-        }, (error: Error, assignmentResults: any) => {
-            if (error) {
-                console.log(error);
-            } else {
-                if (assignmentResults.length == 0) {
-                    SurveyService.dbgMsg("None AssignmentResults to publish found. ");
-                }
-
-                assignmentResults.forEach((ar: any) => {
-
-                    SurveyService.dbgMsg("Found ar:")
-                    
-                    var assignmentId: string = ar.assignment._id;
-                    var title: string = ar.assignment.survey.expireNotificationTitle;
-                    var body: string = ar.assignment.survey.expireNotificationBody;
-
-                    this.getDeviceRegistrationTokenFromUserId(ar.userId, (registrationToken) => {
-                        SurveyService.dbgMsg(`Found ${assignmentId} for ${ar.userId} with devregtoken ${registrationToken}`);
-                        SurveyService.dbgMsg("expireNotificationTitle: " + title);
-                        messageCallback(registrationToken, title, body);
-                        this.setAssignmentResult(ar._id, { $set: { expireNotifiedAt: new Date() } }); // TO DO can this be set directly on AR without a new query
-                    });
-                });
-            }
-
-        }).populate('assignment')
+        } catch (_) {
+            console.error('Notification pass failed; unfinished records remain pending.');
+        } finally { this.notificationPassRunning = false; }
     }
 
     public CreateImpendingResultObjects(
