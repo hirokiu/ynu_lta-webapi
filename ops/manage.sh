@@ -9,6 +9,18 @@ mkdir -p ops/state backups
 exec 9>ops/state/maintenance.lock
 flock -w 3600 9 || { echo "Another maintenance operation is running" >&2; exit 1; }
 compose() { docker compose --env-file .env -f compose.yaml "$@"; }
+require_build_capacity() {
+  # This host also serves Proto. Never start dependency/webpack builds on
+  # a small live server; deploy prebuilt images instead.
+  if [[ -r /proc/meminfo ]]; then
+    local available
+    available=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
+    if [[ ! $available =~ ^[0-9]+$ ]] || (( available < 4194304 )); then
+      echo "Host build refused: less than 4 GiB available. Build images off-host and use deploy-images." >&2
+      return 1
+    fi
+  fi
+}
 wait_api() {
   for attempt in $(seq 1 60); do
     if compose exec -T api node -e 'require("http").get("http://127.0.0.1:9001/api/health",r=>process.exit(r.statusCode===200?0:1)).on("error",()=>process.exit(1))' >/dev/null 2>&1; then return 0; fi
@@ -58,15 +70,27 @@ backup() {
 }
 case "${1:-}" in
   build)
+    require_build_capacity
     git submodule update --init --recursive
-    compose build api web
+    compose build api
+    compose build web
     ;;
-  deploy)
+  deploy|deploy-images)
     [[ -z $(git status --porcelain --untracked-files=no) ]] || { echo "Commit changes before deploying" >&2; exit 1; }
-    git submodule update --init --recursive
-    compose build api web
+    if [[ $1 == deploy ]]; then
+      require_build_capacity
+      git submodule update --init --recursive
+      compose build api
+      compose build web
+    else
+      images=$(compose config --images)
+      [[ -n $images ]] || { echo "No deployment images configured" >&2; exit 1; }
+      while IFS= read -r image; do
+        docker image inspect "$image" >/dev/null || { echo "Missing prebuilt image: $image" >&2; exit 1; }
+      done <<< "$images"
+    fi
     if [[ -n $(compose ps --status running -q api) ]]; then backup; fi
-    compose up -d --wait --wait-timeout 180
+    compose up -d --no-build --pull never --wait --wait-timeout 180
     git rev-parse HEAD > ops/state/deployed-commit
     ;;
   backup) backup ;;
@@ -89,5 +113,5 @@ case "${1:-}" in
     ;;
   indexes) compose exec -T mongodb mongo --quiet Survey < ops/indexes.js ;;
   status) compose ps ;;
-  *) echo "Usage: $0 {build|deploy|backup|restart|indexes|status}" >&2; exit 2 ;;
+  *) echo "Usage: $0 {build|deploy|deploy-images|backup|restart|indexes|status}" >&2; exit 2 ;;
 esac

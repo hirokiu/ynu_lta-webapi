@@ -35,3 +35,15 @@
 ## ProtoアプリのGoogleログイン設定
 
 手元のProto用設定では、iOSのCLIENT_ID/REVERSED_CLIENT_IDとAndroidのWeb/Android OAuthクライアント情報が不足している。Dev設定の流用はしない。Proto Firebase側でGoogle provider・iOSアプリ・Android署名登録を確認し、更新設定ファイルを用意してからネイティブGoogle入口を追加する。パスワードの新旧互換ログインは実装済み。
+
+## 強制再起動後の復旧確認（2026-10-05 22:52〜JST）
+
+利用者がVPSコンソールから強制再起動。SSH再接続成功、Dev/ProtoのAPI/Web/MongoDB全てhealthy、失敗systemdサービスなし、外部HTTPSのProto /api/healthも200。メモリー総量約2GB・swapなし、再起動直後利用可能約1.3GB。ビルドログはAPIとWebの同時ビルド中で途切れておりメモリー負荷が有力だが、管理者カーネルログ未確認のため原因は確定していない。
+
+MongoDB両環境はunclean shutdownを検出後、WiredTiger復旧を完了して接続待受に移行。これは起動復旧確認であり、全データの無欠損や侵入不存在を証明するものではない。
+
+Dev checkoutを0c884d7、Webを06a6bf7へ戻し、.envをops/state/pre-auth.envから復元した。稼働コンテナー・DBの入替はしていない。新実装はGitHubとbundleに保全済み。
+
+公開待受は22/80/443。8081/8082および管理ポートはlocalhost、DBの27017はホスト公開されていない。非特権で読めるlast履歴は既知の接続元だが、SSH全認証履歴の代わりにはならない。sudo不可のため、管理者権限でSSH認証・前回カーネルエラー・SSH設定・鍵指紋・永続化設定・ファイアウォールを集計するreadonly-host-audit.shを配置し利用者に実行依頼。結果未確認の間は不正アクセスなしと断定せず、Dev更新を再開しない。
+
+配備スクリプトにdeploy-imagesを追加。既存イメージを検査し、バックアップ後 --no-build --pull never で起動する。Linuxのホストビルドは利用可能メモリー4GiB未満で拒否し、許可条件でもAPIとWebを順番にビルドする。この閾値は十分性を保証するものではなく、今回の小容量共有サーバーを除外する予防策。新手順の実デプロイは監査後に実施する。
