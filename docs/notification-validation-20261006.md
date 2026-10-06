@@ -46,3 +46,24 @@ ProtoDebugシミュレータービルド成功。APNs/FCMの実受信は未確�
 参考：[Firebase Android受信仕様](https://firebase.google.com/docs/cloud-messaging/android/receive-messages)、
 [Android通知からの画面起動](https://developer.android.com/develop/ui/views/notifications/navigation)、
 [Firebase Apple受信仕様](https://firebase.google.com/docs/cloud-messaging/ios/receive-messages)。
+
+## 実機接続後の結果（2026-10-06 夜）
+
+上記の未接続状態は更新済み。iPhone11 Pro/iOS26.6とAndroid14/CPH2603を接続した。
+
+- Android: DevDebug限定のQA受信サービスと、明示的なinstrumentation引数pushQa=trueで
+  トークン取得を用意。Devプロジェクト・Bundle ID・QA状態・payloadマーカーを検査。
+  Firebase送信成功だけでなく、前面アプリの受信記録を確認した。
+  本人がホーム画面へ戻した後に2通目を送り、通知タップによる起動を本人とアプリ記録の両方で確認。
+  通知先は取得したDev端末トークン1件だけ。topic送信・ユーザーDB登録なし。
+- Android試験後: QAフラグと自動登録を停止、FCMトークンを削除するテスト成功。
+  アプリ内記録とMac／サーバーの一時トークンファイルを削除。通常Devの状態へ戻した。
+  実機の通知権限は本人が許可した状態を保持。Androidコミット039a00a。
+- iPhone: DevDebugの明示的な起動引数のみで通知登録を許可。署名ビルドと配置・通知許可・
+  FCMトークン取得まで成功。指定1台への送信はthird-party-auth-errorで拒否。
+  本人がDev FirebaseのAPNsキー未登録を確認し設定中。設定完了後に再送する。
+  iPhoneトークンは非公開一時ファイルで保持し、受信確認後に削除する。iOSコミット03aad82。
+- iOS/AndroidのProtoビルドとAndroid DevReleaseビルド成功。Androidの既存JPEGにPNG拡張子が
+  付いていたため、内容を変えずjpgへ修正。実利用者・研究者の認証やSurveyデータに変更なし。
+- 新サーバーの通常通知・配信準備は引き続きfalse。APIの通知修正は未デプロイ。
+  実機でのログイン→Survey回答の通し試験、Proto通知、終了状態からの通知は未確認。
