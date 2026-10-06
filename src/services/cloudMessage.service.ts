@@ -4,12 +4,13 @@ import { notificationsEnabled } from "../utils/runtimeFlags";
 export class CloudMessageService {
     // true means FCM accepted the message, not that the user received/read it.
     public async sendMessage(registrationToken: string, title: string = "KIROKUN",
-                             body: string = "KIROKUNからのお知らせです。" ): Promise<boolean> {
+                             body: string = "KIROKUNからのお知らせです。", data: {[key: string]: string} = {} ): Promise<boolean> {
         if (!notificationsEnabled() || !registrationToken) return false;
         try {
             await admin.messaging().send({
                 token: registrationToken,
                 notification: {title, body},
+                data,
                 android: {notification: {sound: "default"}},
                 apns: {payload: {aps: {sound: "default"}}}
             });

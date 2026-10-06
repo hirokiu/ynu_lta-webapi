@@ -1,8 +1,8 @@
 // Disposable local MongoDB; no Firebase credentials or real notifications.
 const assert=require('assert'),crypto=require('crypto'),mongoose=require('mongoose');
-let delivery='accepted', sends=0;
+let delivery='accepted', sends=0, lastMessage;
 const firebasePath=require.resolve('../dist/services/firebaseAdmin.service');
-require.cache[firebasePath]={id:firebasePath,filename:firebasePath,loaded:true,exports:{__esModule:true,default:{messaging:()=>({send:async()=>{sends++;if(delivery==='failed')throw Error('synthetic');return 'synthetic-id';}})}}};
+require.cache[firebasePath]={id:firebasePath,filename:firebasePath,loaded:true,exports:{__esModule:true,default:{messaging:()=>({send:async message=>{lastMessage=message;sends++;if(delivery==='failed')throw Error('synthetic');return 'synthetic-id';}})}}};
 const {CloudMessageService}=require('../dist/services/cloudMessage.service');
 const {SurveyService}=require('../dist/services/surveyApi.service');
 const {Assignment,AssignmentResults,User}=require('../dist/models/survey.model');
@@ -11,6 +11,9 @@ const {Assignment,AssignmentResults,User}=require('../dist/models/survey.model')
  process.env.NOTIFICATIONS_ENABLED='true';assert.equal(await sender.sendMessage(''),false);assert.equal(sends,0);
  delivery='failed';assert.equal(await sender.sendMessage('synthetic-token'),false);
  delivery='accepted';assert.equal(await sender.sendMessage('synthetic-token'),true);
+ const target={kirokunAssignmentId:'0123456789abcdef01234567',kirokunUserId:'qa',kirokunEnvironment:'dev'};
+ await sender.sendMessage('synthetic-token','title','body',target);assert.deepEqual(lastMessage.data,target);
+ process.env.ACCOUNT_SCOPE='dev';
  await mongoose.connect('mongodb://127.0.0.1:27071/kirokun_notifications_'+crypto.randomBytes(6).toString('hex'),{useNewUrlParser:true,useUnifiedTopology:true,autoIndex:false});
  try {
   await User.create({userId:'qa',deviceToken:'synthetic-token'});
@@ -22,7 +25,7 @@ const {Assignment,AssignmentResults,User}=require('../dist/models/survey.model')
   const missing=await AssignmentResults.create({userId:'qa',assignment:new mongoose.Types.ObjectId(),...dates});
   const noToken=await Assignment.create({userId:'no-token',survey,...dates});
   const runner=new SurveyService();let calls=0;
-  await runner.FindRegistrationTokensForNotification(async()=>{calls++;return false});assert.equal(calls,4);
+  await runner.FindRegistrationTokensForNotification(async(token,title,body,data)=>{calls++;assert.equal(data.kirokunUserId,'qa');assert.equal(data.kirokunEnvironment,'dev');assert([String(individual._id),String(group._id)].includes(data.kirokunAssignmentId));return false});assert.equal(calls,4);
   assert.equal((await Assignment.findById(individual._id)).publishNotifiedAt,undefined);
   assert.equal((await AssignmentResults.findById(recipient._id)).expireNotifiedAt,undefined);
   calls=0;await runner.FindRegistrationTokensForNotification(async()=>{calls++;throw Error('provider unavailable')});assert.equal(calls,4);

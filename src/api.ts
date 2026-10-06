@@ -59,8 +59,8 @@ class Api {
         if (!notificationsEnabled()) return;
 
         this.surveyService.FindRegistrationTokensForNotification(
-            (deviceRegistrationToken: string, title: string, body: string) => {
-                return this.cloudMessageService.sendMessage(deviceRegistrationToken, title, body);
+            (deviceRegistrationToken: string, title: string, body: string, data: {[key: string]: string}) => {
+                return this.cloudMessageService.sendMessage(deviceRegistrationToken, title, body, data);
             }
         );
     }

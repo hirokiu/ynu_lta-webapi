@@ -92,3 +92,21 @@ header/footerが欠落し、「次へ」で進めないことが判明した。S
 index 0=header、1=open（既存設問を保持）、2=footerに修正し、保存形式を再読込検証。
 今後の画面確認用データでは連番と開始・送信確認ページを必須とする。
 本人の再入力・送信とDB保存確認は未完了。既存Survey・Protoは変更していない。
+
+
+## 通知から対象Surveyへの遷移（2026-10-07）
+
+通知にkirokunAssignmentId・kirokunUserId・kirokunEnvironmentを付与。
+グループ配信はAssignmentResultsではなく、本人一覧に返る親AssignmentのIDを使用。
+アプリはタップ情報をログイン後まで保持（最大1時間）、環境と宛先を照合し、
+認証後に取得した本人のSurvey一覧にある対象だけを開く。一度消費した情報は再利用しない。
+回答可能なら回答開始、回答済みなら結果、期限切れなら期限情報。見つからない場合は案内。
+Androidの前面通知もpayloadを維持し、PendingIntentを通知ごとに分離する。
+
+検証: API TypeScriptビルド、隔離MongoDB＋FCMモックの個人/グループID・送信結果・再試行テスト成功。
+Android Dev/Protoビルド成功。OPPOで環境違い・宛先違い・ID形式・期限・一度限り消費テスト成功。
+iOS Dev実機ビルド成功。回答済み検証Survey宛のPush1通をDev iPhoneへ送信受付成功。
+本人による回答済み画面への遷移確認待ち。通常API配信は未デプロイ・無効のまま。
+新サーバーのops/state/push-qa-ios-20261007.jsonとMac非公開一時ファイルに検証トークン保持。
+確認後はiOS QA cleanup起動でトークン失効・ファイル削除し、通常起動へ戻すこと。
+未回答・期限切れ・削除済みの画面遷移、ログアウトからの復帰、Android実Push遷移は未確認。

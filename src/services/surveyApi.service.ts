@@ -1365,7 +1365,7 @@ private static getDatasetsOfAssignments(assignments: any) {
     private notificationPassRunning = false;
 
     public async FindRegistrationTokensForNotification(
-        messageCallback: (token: string, title: string, body: string) => Promise<boolean>
+        messageCallback: (token: string, title: string, body: string, data: {[key: string]: string}) => Promise<boolean>
     ): Promise<void> {
         // Avoid overlapping timer passes within the single API process.
         if (this.notificationPassRunning) return;
@@ -1399,7 +1399,9 @@ private static getDatasetsOfAssignments(assignments: any) {
                             try {
                                 accepted = await messageCallback(user.deviceToken,
                                     expiring ? survey.expireNotificationTitle : survey.publishNotificationTitle,
-                                    expiring ? survey.expireNotificationBody : survey.publishNotificationBody);
+                                    expiring ? survey.expireNotificationBody : survey.publishNotificationBody,
+                                    {kirokunAssignmentId: String(assignment._id), kirokunUserId: String(record.userId),
+                                     kirokunEnvironment: process.env.ACCOUNT_SCOPE || 'proto'});
                             } catch (_) { /* Leave unmarked for a later timer pass. */ }
                             if (accepted) {
                                 await model.updateOne({_id: record._id, [marker]: {$exists: false}},
