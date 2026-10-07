@@ -1,4 +1,5 @@
 import { Application } from 'express';
+import { accountRoutes } from './accounts/routes';
 import { getAuthenticatedUserId, SurveyService } from './services/surveyApi.service';
 import { CloudMessageService } from './services/cloudMessage.service';
 
@@ -13,6 +14,7 @@ export class Controller {
   }
 
   public routes() {
+    accountRoutes(this.app);
 
     // Resolve the authenticated account without deriving a user ID from its email.
     this.app.get('/api/me', (req, res) => {
