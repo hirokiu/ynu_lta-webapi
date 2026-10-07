@@ -32,3 +32,22 @@
 - 設定変更はProto ops/schedule.confを編集し、時刻変更後はinstall-timers.shを再実行。保存日数は次回処理から参照される。
 - イメージarchive SHA256: 0a8fb65ee3a67fa5b2f0e872ab39126039b2aa765c336383c58599bdad710271。
 - この時点では稼働API/Webと45名UID対応案は未反映。研究者の認証情報・DBは変更なし。
+
+## Proto反映完了（2026-10-07）
+
+- API/Web稼働タグ: proto-auth-e40dd85。Web実装c37fc00、サーバー統合ソースc5b42c4。APIはe40dd85と同一実装。
+- 直前バックアップ: survey-20261007T143140Z-2316267.archive.gz。前段の独立復元済みバックアップも保持。
+- サーバー上の未追跡dev.caddyは新ソースとSHA256が一致することを確認・保全し、同一内容を追跡対象にした。既存compose.yaml.before-host-guardは保持。内容のコンフリクトなし。
+- 45名UID対応を適用。USERNAME_ACCOUNTS_ENABLEDと招待・再設定・Google登録はfalse、ACCOUNT_SCOPE=proto、通常通知・配信準備falseを維持。Firebase認証情報は未変更。
+- 変更前後の全コレクション文書ハッシュが一致: assignments 4,182、assignmentresults 4,651、groups 12、surveys 56、users 45。
+- 全56SurveyのCSV/JSON出力ハッシュ、hiroki_uのアプリ一覧ハッシュ、既存管理者3名のUID/email/disabled/provider情報ハッシュ一致。回答本文や秘密値はログ・Gitへ保存していない。
+- 上松UIDのFirebase custom-token交換と検証済みIDトークンで管理API200、/me 200、未認証管理API401。これは旧パスワードの本人入力試験ではないため、別途管理画面で確認を依頼した。
+- 初回の検証スクリプトはcustom-token応答のlocalId存在を誤って仮定して停止した。IDトークンの署名検証済みUIDで照合するよう修正し成功。実サービス障害ではない。
+- 全コンテナーhealthy、Protoログイン200、API384MiB制限・再起動回数0、host-guardと両タイマーactive。Dev稼働イメージは変更なし。
+- 比較記録はサーバーops/state/proto-auth-{before,after}-20261007.json。
+
+### ロールバック
+
+旧envはops/state/env-before-auth-20261007、旧Composeはcompose-before-auth-20261007.yamlに0600で保全。保守ロック下でこれらを戻し、Composeのapi/webのみ --no-deps --no-build --pull never --wait で再作成する。旧イメージproto-export-c7f2531は保持。DB復元は行わない。ソースと稼働版の相違を記録し、切替後の新規データを保護する。
+
+次は管理画面の本人ログイン確認、Proto実機の認証・回答・指定端末通知確認。研究者2名の認証移行・一般通知再開・旧本番との差分移行・サーバー解約は未完了。
