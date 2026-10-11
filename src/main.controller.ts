@@ -1,4 +1,5 @@
 import { Application } from 'express';
+import { currentProject, projectRoutes } from './projects/settings';
 import { accountRoutes } from './accounts/routes';
 import { getAuthenticatedUserId, SurveyService } from './services/surveyApi.service';
 import { CloudMessageService } from './services/cloudMessage.service';
@@ -15,11 +16,17 @@ export class Controller {
 
   public routes() {
     accountRoutes(this.app);
+    projectRoutes(this.app);
 
     // Resolve the authenticated account without deriving a user ID from its email.
     this.app.get('/api/me', (req, res) => {
       res.set('Cache-Control', 'no-store');
-      getAuthenticatedUserId(req, res, userId => res.json({ userId }));
+      getAuthenticatedUserId(req, res, async userId => {
+        // Optional display metadata must never prevent existing clients from logging in.
+        let project = null;
+        try { project = await currentProject(); } catch (_) { /* Keep authentication available. */ }
+        res.json({ userId, project });
+      });
     });
 
     /* misc */

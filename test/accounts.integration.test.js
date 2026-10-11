@@ -81,7 +81,7 @@ let server;
  assert.equal(active.state,'active');assert.equal(active.invitationHash,undefined);assert.notEqual(active.passwordHash,password);
  assert(await passwordMatches(password,active.passwordHash));
  assert.deepEqual(await resolveAccountIdentity({uid:active.uid}),{userId:active.userId,isAdmin:false});
- assert.deepEqual((await get('/api/me','issued:'+active.uid)).body,{userId:active.userId});
+ assert.equal((await get('/api/me','issued:'+active.uid)).body.userId,active.userId); // Optional project metadata is additive.
  assert.equal((await get('/api/users/old_participant','issued:'+active.uid)).status,401);
  assert.equal((await get('/api/users/'+active.userId+'/assignments','issued:'+active.uid)).status,200);
  assert.equal((await post('/api/auth/username-login',{username:'alice',password})).status,200);
