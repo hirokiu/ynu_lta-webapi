@@ -26,8 +26,8 @@
 
 - APIビルド、名称設定統合試験（未認証拒否、権限、名称検証、同時更新、監査履歴、環境分離）、既存アカウント・通知統合試験が成功。
 - 管理画面ビルド、iOS Protoシミュレーター/配布アーカイブ、Android Proto/DevビルドおよびProto単体試験が成功。
-- サーバー配置ソース f259c2d、Webサブモジュール6e00c51。
-- 配置イメージ `kirokun-api:proto-project-20261012` / `kirokun-web:proto-project-20261012`。Macでlinux/amd64向けに作成。
+- サーバー配置ソース67d7df5、Webサブモジュールd8d1ec3。
+- 配置イメージ `kirokun-api:proto-project-20261012` / `kirokun-web:proto-project-20261012-r2`。APIのr2タグは同一イメージの別名。Macでlinux/amd64向けに作成。
 - 更新前バックアップ `survey-20261011T164653Z-2782339.archive.gz`。gzip検証・SHA256を作成（今回の復元試験は未実施）。
 - 2026-10-12 01:47 JSTに3コンテナーhealthy、公開API `/api/health` ready=trueを確認。
 - NOTIFICATIONS_ENABLED=true、ASSIGNMENT_PREPARATION_ENABLED=true、ACCOUNT_SCOPE=protoを維持。
@@ -43,3 +43,9 @@
 5. 問題がなければ、その確認済みビルドだけ共同研究者へ配布する。
 
 実機での名称反映・長い名称のレイアウトは上松さんの確認待ち。任意の新名称への変更試験は隔離DBの統合試験で実施済み。
+
+## 最終確認
+
+- ページを直接再読み込みした際の認証復元で名称取得を再試行する修正を追加し、実サーバーのブラウザーで保存済みProtoの自動表示を確認。
+- iOS 2026101201はTestFlight「上松・先行確認」でTesting。上松さんの2メールアドレスのみ。共同研究者グループは2名・従来ビルド1件のまま。
+- Androidは確認用APK作成済み。実機未接続のため、この版のインストール・名称反映は未確認。
