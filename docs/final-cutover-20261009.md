@@ -37,3 +37,11 @@
 - 次回調査の日付と配信時刻。従前の10月19日頃は目安であり確定日時ではない。
 - Android正式配布方法・Google Play用署名。今回APKは従来と同じ開発署名による限定確認用。
 - 通常運用は1アカウントに1台の通知先。上松が複数端末で交互にログインすると最後の端末へ登録が移る。
+
+## 2026-10-11 更新
+
+上松からhanzawa本人の新パスワード設定とログイン確認完了の報告。読み取り監査でhanzawa/hasegawaともactive、passwordHashあり、lastUsernameLoginAtあり、既存Userあり、Firebase disabled=falseを確認。最終新ログインはhanzawa 10月11日19:52 JST、hasegawa 10月8日09:53 JST。両名とも旧メール・password providerは保持されており、finalizeは未実施。
+
+定期バックアップ10月11日03:00:07 JST、週次再起動03:30:19 JSTはResult=success、終了コード0。Proto API/Web/Mongoはhealthy、host-guard active。週次再起動の初回未確認という上記項目は解消した。再起動対象はProtoスタックであり、Devやedgeの再起動を意味しない。
+
+TestFlightは引き続き上松の2アカウントのみ。共同研究者の更新アプリでの新認証確認と次回Survey日程を質問中。通常配信有効化・旧API停止・旧認証除去はまだ行わない。
