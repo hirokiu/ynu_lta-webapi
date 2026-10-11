@@ -45,3 +45,15 @@
 定期バックアップ10月11日03:00:07 JST、週次再起動03:30:19 JSTはResult=success、終了コード0。Proto API/Web/Mongoはhealthy、host-guard active。週次再起動の初回未確認という上記項目は解消した。再起動対象はProtoスタックであり、Devやedgeの再起動を意味しない。
 
 TestFlightは引き続き上松の2アカウントのみ。共同研究者の更新アプリでの新認証確認と次回Survey日程を質問中。通常配信有効化・旧API停止・旧認証除去はまだ行わない。
+
+## 2026-10-11 22:19 JST Proto通常配信を有効化
+
+上松より、既存Surveyの配信予定はなく、次の調査は更新完了後に開始するため、共同研究者が自分宛てSurveyを作成して配信・回答を試せるよう通常配信を有効にする指示を受領。従来の最終切替順序から、Proto配信再開を先行する判断として記録する。
+
+新旧DBで、将来のAssignment、25時間前後のグループ配信準備候補、期限内未回答の個別Assignment/AssignmentResultはいずれも0件を確認。旧APIは無条件スケジューラーを稼働中だが、今回停止・変更はしていない。今後の作成・割当はProtoに限定し、旧管理画面で配信予定を新設しない。旧環境が配信不能になったことを意味しない。
+
+有効化前に新サーバー内でsurvey-20261011T131900Z-2617381.archive.gzを取得（gzip/SHA256検査、API復帰成功）。旧.envはops/state/env-before-notification-enable-20261011に非公開保全。maintenance.lock取得下でNOTIFICATIONS_ENABLED=true、ASSIGNMENT_PREPARATION_ENABLED=trueへ変更し、既存イメージのAPIのみ再作成。コンテナー内の両フラグtrue、healthy、RestartCount=0、公開/api/health ready=true、10秒周期の配信準備処理起動を確認した。MongoDB/Web/Devの設定は変更しない。
+
+共同研究者用TestFlightグループは自動配布無効、確認済み2.0.0（2026100802）のみ、本人確認済み2名へ追加済み。両名のアプリ更新・新認証ログイン・自分宛てSurvey配信・実通知受信・回答はこれから本人が確認する。今回テスト通知の送信やSurveyの代理作成は行っていない。
+
+以後、Protoへ入った新規データを必ず保全する。旧DBでProtoを上書きしない。旧API停止、最終差分統合、旧認証除去、旧URL切替、サーバー解約は別工程として残る。問題時は両配信フラグをfalseにしてAPIを再作成する（古い.env全体の復元は後日の設定変更を失うため避ける）。
