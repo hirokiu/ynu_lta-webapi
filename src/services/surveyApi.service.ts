@@ -208,18 +208,15 @@ export class SurveyService {
     /* Group */
 
     public getAllGroups(req: Request, res: Response) {
-
-        SurveyService.dbgReq(req);
-        checkIfAuthenticatedAdmin(req, res, (uid: string) => {
-            SurveyService.dbgMsg("greetings admin " + uid + "!");
-
-            Group.find({}, (error: Error, group: MongooseDocument) => {
-                if (error) {
-                    res.send(error);
-                } else {
-                    res.json(group);
-                }
-            }).sort('-createdAt');
+        checkIfAuthenticatedAdmin(req, res, async () => {
+            let search: RegExp | undefined;
+            try { search = literalSearch(req.query.t); }
+            catch (_) { res.status(400).json({error: 'Invalid group search'}); return; }
+            try {
+                const groups = await Group.find(search ? {groupId: search} : {})
+                    .sort({createdAt: -1, _id: -1}).lean().maxTimeMS(15000).exec();
+                res.json(groups);
+            } catch (_) { res.status(500).json({error: 'Could not load groups'}); }
         });
     }
 

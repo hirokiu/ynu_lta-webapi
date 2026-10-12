@@ -11,7 +11,7 @@ const firebasePath = require.resolve('../src/services/firebaseAdmin.service');
 require.cache[firebasePath] = {id:firebasePath,filename:firebasePath,loaded:true,exports:{__esModule:true,default:{auth:()=>({verifyIdToken:async token=>{if(token!=='test-only') throw Error('unauthorized');return {email:'hiroki_u@humlablu.com'};}})}}};
 const {SurveyService} = require('../src/services/surveyApi.service');
 const {Controller} = require('../src/main.controller');
-const {Survey,Assignment,AssignmentResults} = require('../src/models/survey.model');
+const {Survey,Assignment,AssignmentResults,Group} = require('../src/models/survey.model');
 async function main() {
  const uri = process.env.TEST_MONGO_URL || 'mongodb://127.0.0.1:37017/kirokun_refactor_test';
  assert(/^mongodb:\/\/127\.0\.0\.1:37017\/kirokun_refactor_test$/.test(uri),'Only the isolated local test database is allowed');
@@ -41,6 +41,11 @@ async function main() {
  };
  try {
   assert.equal((await request('/api/admin/assignments','bad')).status,401);
+  await Group.insertMany([{groupId:'Literal [team]+',userIds:[]},{groupId:'Other',userIds:[]}]);
+  assert.equal((await request('/api/groups')).json().length,2);
+  assert.equal((await request('/api/groups?t='+encodeURIComponent('[team]+'))).json().length,1);
+  assert.equal((await request('/api/groups?t=not-present')).json().length,0);
+  assert.equal((await request('/api/groups?t=Other','bad')).status,401);
   let first=(await request('/api/admin/assignments?limit=50')).json();
   let second=(await request('/api/admin/assignments?limit=50&page=2')).json();
   assert.equal(first.total,120);assert.equal(second.total,120);assert.equal(first.items.length,50);assert(first.hasMore);assert.equal(new Set([...first.items,...second.items].map(a=>a._id)).size,100);
