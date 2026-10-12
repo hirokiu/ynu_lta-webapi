@@ -1,8 +1,9 @@
 import { Request, Response, response } from "express";
 import { MongooseDocument, Mongoose, Error } from "mongoose";
 import { Model, Document, DocumentQuery } from "mongoose";
+import { combinedAnswerCursor, surveyAnswerPage } from '../utils/surveyAnswers';
 import { currentProject } from '../projects/settings';
-import { exportFile, ExportError } from '../utils/exportFile';
+import { exportFile } from '../utils/exportFile';
 
 var moment = require('moment-timezone');
 
@@ -1327,13 +1328,8 @@ private static getDatasetsOfAssignments(assignments: any, timezone = 'Asia/Tokyo
                 if (!/^[a-f0-9]{24}$/i.test(req.params.sid)) throw new global.Error("Invalid survey");
             } catch (error) { res.status(400).json({ error: "Invalid filters" }); return; }
             try {
-                const ids = await Assignment.find({ "survey._id": req.params.sid }).select("_id").lean().exec();
-                const records: any[] = await AssignmentResults.find({ assignment: { $in: ids.map((a: any) => a._id) }, "dataset.answers.0": { $exists: true } })
-                    .select("userId lastOpenedAt updatedAt dataset.answers.index")
-                    .sort({ updatedAt: -1, _id: -1 }).skip(paging.skip).limit(paging.limit + 1).lean().maxTimeMS(15000).exec();
-                res.json({ page: paging.page, limit: paging.limit, hasMore: records.length > paging.limit,
-                    items: records.slice(0, paging.limit).map(record => ({ _id: record._id, userId: record.userId,
-                        answeredAt: record.lastOpenedAt || record.updatedAt, answerCount: record.dataset.answers.length })) });
+                const result = await surveyAnswerPage(req.params.sid, paging.skip, paging.limit);
+                res.json({page: paging.page, limit: paging.limit, hasMore: paging.skip + result.items.length < result.total, ...result});
             } catch (error) { res.status(500).json({ error: "Could not load answers" }); }
         });
     }
@@ -1349,16 +1345,8 @@ private static getDatasetsOfAssignments(assignments: any, timezone = 'Asia/Tokyo
             let timezone: string;
             try { timezone = (await currentProject()).timezone; } catch (_) { res.status(503).json({error: 'Could not load project timezone'}); return; }
             res.setHeader('X-Export-Timezone', timezone);
-            await exportFile(res, async () => {
-                const ids = await Assignment.find({ "survey._id": req.params.sid }).select("_id")
-                    .limit(50001).lean().maxTimeMS(15000).exec();
-                if (ids.length > 50000) throw new ExportError(413, 'Too many assignments for one export');
-                const filter: any = { assignment: { $in: ids.map((a: any) => a._id) }, "dataset.answers.0": { $exists: true } };
-                if (selectedIds) filter._id = { $in: selectedIds };
-                if (range) filter.$or = [{ lastOpenedAt: range }, { lastOpenedAt: null, updatedAt: range }];
-                return AssignmentResults.find(filter).select("userId user dataset lastOpenedAt updatedAt")
-                    .lean().maxTimeMS(60000).cursor({batchSize: 1});
-            }, String(format), records => SurveyService.getDatasetsOfAssignments(records, timezone), selectedIds && selectedIds.length);
+            await exportFile(res, () => combinedAnswerCursor(req.params.sid, range, selectedIds),
+                String(format), records => SurveyService.getDatasetsOfAssignments(records, timezone), selectedIds && selectedIds.length);
         });
     }
 

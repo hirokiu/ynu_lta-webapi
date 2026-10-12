@@ -83,6 +83,18 @@ async function main() {
   const foreignResult=await AssignmentResults.create({assignment:foreignAssignment._id,userId:'foreign',dataset:{answers:[{index:1,type:'single',intValue:1}]}});
   assert.equal((await request(exportPath,'test-only',{scope:'selected',format:'json',ids:[String(foreignResult._id)]})).status,422);
   assert.equal((await request(exportPath,'test-only',{scope:'all',format:'json'})).json().length,2);
+  await Assignment.updateOne({_id:assignments[1]._id},{$set:{dataset:{answers:[{index:1,type:'single',intValue:5}]},lastOpenedAt:new Date('2026-01-04T00:00:00Z')}});
+  // Same assignment + user in both formats is represented once, by the newer format.
+  await Assignment.updateOne({_id:assignments[0]._id},{$set:{dataset:{answers:[{index:1,type:'single',intValue:99}]},lastOpenedAt:new Date('2026-01-04T00:00:00Z')}});
+  const combined=await request(exportPath,'test-only',{scope:'all',format:'json'});
+  assert.equal(combined.status,200,combined.text);assert.equal(combined.json().length,3);assert(!combined.text.includes('99'));
+  const mixed=await request(exportPath,'test-only',{scope:'selected',format:'json',ids:[String(savedResults[0]._id),'legacy:'+assignments[1]._id]});
+  assert.equal(mixed.status,200,mixed.text);assert.equal(mixed.json().length,2);
+  const historyPage=(await request(`/api/surveys/${survey._id}/results?limit=1&page=3`)).json();
+  assert.equal(historyPage.total,3);assert.equal(historyPage.items[0]._id,'legacy:'+assignments[1]._id);assert.equal(historyPage.hasMore,false);
+  const historyPeriod=await request(exportPath,'test-only',{scope:'period',format:'csv',from:'2026-01-04T00:00:00Z',to:'2026-01-04T23:59:59Z'});
+  assert.equal(historyPeriod.status,200);assert(historyPeriod.text.includes('5'));assert(!historyPeriod.text.includes('99'));
+  assert.equal((await request(exportPath,'test-only',{scope:'selected',format:'json',ids:['legacy:'+foreignAssignment._id]})).status,422);
   // Verify formatter parity against immutable recorded baseline when supplied.
   if(process.env.BASELINE_SERVICE){
    const filename=require.resolve('../src/services/surveyApi.service');

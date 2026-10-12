@@ -21,3 +21,5 @@ assert.throws(()=>exportOptions({scope:'all',from:'2026-01-01',to:'2026-02-01'},
 assert.throws(()=>exportOptions({scope:'selected',ids:Array(1001).fill('a'.repeat(24))},true));
 assert.equal(exportOptions({scope:'selected',ids:['a'.repeat(24),'a'.repeat(24)]},true).selectedIds.length,1);
 console.log('Export validation tests passed');
+
+assert.deepStrictEqual(exportOptions({scope:'selected',ids:['LEGACY:'+'A'.repeat(24),'legacy:'+'a'.repeat(24)]},true).selectedIds,['legacy:'+'a'.repeat(24)]);
