@@ -43,3 +43,9 @@
 - 通常出力の自動保存処理を修正。ブラウザーから実回答ファイルをMacへ保存する操作は実施せず、生成内容は上記サーバー内検証で確認。利用者のブラウザーで保存までの再確認を依頼する。
 
 比較・検証記録: 新サーバー `ops/state/kirokun-{old,proto}-fingerprint-20261012.json`、`kirokun-diff-summary-20261012.json`、`answer-export-verification-20261012.log`。旧・Proto全件archiveも同ディレクトリに権限0600で保全。稼働中の全件取得とは別に、最終配備時は書込み停止バックアップを取得済み。
+
+## 旧サイト接続と再照合（2026-10-12 13:18 JST頃）
+
+旧サイトのHTTPS（443）は接続不可だが、HTTP（80）は200 OK。旧nginxの有効設定はlisten 80のみでTLS設定はコメントアウト。旧Web/API/MongoDBは継続稼働。設定変更は実施していない。
+旧・Protoの全コレクションを再読み取りしてIDと正規化SHA256で照合し、上記の件数・差分と完全に同じ結果。両環境とも前回manifestからの変更なし。旧のみのドキュメントは全コレクションで0、Survey/Group/Assignment/AssignmentResultsの共通データは全一致。
+新サーバーops/stateの `kirokun-{old,proto}-fingerprint-recheck-20261012.json` と `kirokun-diff-recheck-20261012.json` に記録。
