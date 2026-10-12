@@ -19,3 +19,5 @@
 ## Deployment
 
 Target: Proto only. Build images on Mac (linux/amd64); back up before deploying. Release tag: proto-timezone-20261012. Existing production survey data, authentication and notification settings are retained.
+
+Deployment completed: API 6fecae7 / Web 006b0e1, all three containers healthy. Pre-deployment backup: `survey-20261012T012725Z-3197643.archive.gz` (gzip/checksum created by deployment workflow). Browser verified right-aligned project/hiroki_u/clock, seconds advancing, Settings save and reload. Stored project timezone is Asia/Tokyo (revision 3); project name remains ESM研究グループ. CSV/JSON timezone switching was tested against isolated synthetic data, not by temporarily changing the shared live project's timezone.
