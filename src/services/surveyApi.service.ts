@@ -20,6 +20,7 @@ import {
 import admin from "./firebaseAdmin.service";
 import { pageOptions, literalSearch, dateRange, exportOptions } from "../utils/query";
 import { resolveAccountIdentity } from "../accounts/identity";
+import { Account, accountsEnabled, accountScope } from "../accounts/models";
 import Rand, { PRNG } from 'rand-seed';
 
 export const getAuthToken = (req: Request, res: Response, callback: (ah: any) => void) => {
@@ -94,6 +95,15 @@ export const getAuthenticatedUserId = (req: Request, res: Response, callback: (u
     });
 };
 
+// Only attach public login names to administrator-facing user responses.
+async function usersWithNames(users: any[]) {
+    const accounts: any[] = accountsEnabled() && users.length ? await Account.find({
+        scope: accountScope(), userId: {$in: users.map(user => user.userId)}
+    }).select('userId username').lean().exec() : [];
+    const names = new Map(accounts.map(account => [account.userId, account.username]));
+    return users.map(user => ({...user, username: names.get(user.userId) || (/^u_[a-f0-9]{32}$/.test(user.userId) ? null : user.userId)}));
+}
+
 export class SurveyService {
 
     static dbgReq(req: Request) {
@@ -125,17 +135,9 @@ export class SurveyService {
     public getAllUsers(req: Request, res: Response) {
 
         SurveyService.dbgReq(req);
-        checkIfAuthenticatedAdmin(req, res, (uid: string) => {
-            SurveyService.dbgMsg("greetings admin " + uid + "!");
-
-            User.find({}, (error: Error, user: MongooseDocument) => {
-                if (error) {
-                    res.send(error);
-                } else {
-                    res.json(user);
-                }
-            }).sort('-createdAt');
-
+        checkIfAuthenticatedAdmin(req, res, async () => {
+            try { res.json(await usersWithNames(await User.find({}).sort('-createdAt').lean().exec())); }
+            catch (_) { res.status(503).json({error: 'ユーザー一覧を取得できませんでした。'}); }
         });
     }
 
@@ -166,18 +168,11 @@ export class SurveyService {
 
     public getUserById(req: Request, res: Response) {
         SurveyService.dbgReq(req);
-        checkIfAuthenticatedAdmin(req, res, (uid: string) => {
-            SurveyService.dbgMsg("greetings admin " + uid + "!");
-
-            SurveyService.dbgReq(req);
-            User.findOne({ userId: req.params.id }, (error: Error, user: MongooseDocument) => {
-                if (error) {
-                    res.send(error);
-                } else {
-                    res.json(user);
-                }
-            })
-
+        checkIfAuthenticatedAdmin(req, res, async () => {
+            try {
+                const user = await User.findOne({userId: req.params.id}).lean().exec();
+                res.json(user ? (await usersWithNames([user]))[0] : null);
+            } catch (_) { res.status(503).json({error: 'ユーザーを取得できませんでした。'}); }
         });
     }
 
@@ -429,17 +424,15 @@ export class SurveyService {
 
     public findUserByUserId(req: Request, res: Response) {
         SurveyService.dbgReq(req);
-        checkIfAuthenticatedAdmin(req, res, (uid: string) => {
-            SurveyService.dbgMsg("greetings admin " + uid + "!");
-
-            User.find({ "userId": { "$regex": req.query.t, "$options": "i" } }, (error: Error, users: MongooseDocument) => {
-                if (error) {
-                    res.send(error);
-                } else {
-                    res.json(users);
-                }
-            }).sort('-createdAt');
-
+        checkIfAuthenticatedAdmin(req, res, async () => {
+            let search: RegExp | undefined;
+            try { search = literalSearch(req.query.t); }
+            catch (_) { return res.status(400).json({error: '検索文字列を確認してください。'}); }
+            try {
+                const accounts: any[] = search && accountsEnabled() ? await Account.find({scope: accountScope(), username: search}).select('userId').lean().exec() : [];
+                const filter = search ? {$or: [{userId: search}, {userId: {$in: accounts.map(account => account.userId)}}]} : {};
+                res.json(await usersWithNames(await User.find(filter).sort('-createdAt').lean().exec()));
+            } catch (_) { res.status(503).json({error: 'ユーザーを検索できませんでした。'}); }
         });
     }
 
