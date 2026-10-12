@@ -372,8 +372,9 @@ export class SurveyService {
                     .select(kind === "assignments" ? "userId groupId publishAt expireAt publishFrom publishTo publishNotifiedAt expireNotifiedAt firstOpenedAt lastOpenedAt createdAt survey._id survey.name survey.title survey.questions._id dataset.createdAt" : "name title createdAt questions._id")
                     .sort(kind === "assignments" ? { publishAt: -1, _id: -1 } : { createdAt: -1, _id: -1 })
                     .skip(paging.skip).limit(paging.limit + 1).lean().maxTimeMS(15000).exec();
+                const total = await model.countDocuments(filter).maxTimeMS(15000).exec();
                 const hasMore = items.length > paging.limit;
-                res.json({ items: items.slice(0, paging.limit), page: paging.page, limit: paging.limit, hasMore });
+                res.json({ items: items.slice(0, paging.limit), page: paging.page, limit: paging.limit, hasMore, total });
             } catch (error) { res.status(500).json({ error: "Could not load page" }); }
         });
     }

@@ -43,11 +43,15 @@ async function main() {
   assert.equal((await request('/api/admin/assignments','bad')).status,401);
   let first=(await request('/api/admin/assignments?limit=50')).json();
   let second=(await request('/api/admin/assignments?limit=50&page=2')).json();
-  assert.equal(first.items.length,50);assert(first.hasMore);assert.equal(new Set([...first.items,...second.items].map(a=>a._id)).size,100);
+  assert.equal(first.total,120);assert.equal(second.total,120);assert.equal(first.items.length,50);assert(first.hasMore);assert.equal(new Set([...first.items,...second.items].map(a=>a._id)).size,100);
   assert.equal((await request('/api/admin/assignments?limit=1000')).status,400);
   assert.equal((await request('/api/admin/assignments?t='+encodeURIComponent('[survey]+'))).json().items.length,50);
   assert.equal((await request('/api/admin/assignments?from=2026-02-01&to=2026-02-02')).json().items.length,0);
   assert.equal((await request('/api/admin/surveys')).json().items.length,1);
+  assert.equal((await request('/api/admin/surveys')).json().total,1);
+  assert.equal((await request('/api/admin/assignments?t=not-present')).json().total,0);
+  const last=(await request('/api/admin/assignments?limit=50&page=3')).json();assert.equal(last.total,120);assert.equal(last.items.length,20);assert.equal(last.hasMore,false);
+  assert.equal((await request('/api/admin/assignments?from=2026-02-01&to=2026-02-02')).json().total,0);
   const csv=await request(`/api/surveys/${survey._id}/datasets/results/csv?from=2026-01-02T00:00:00Z&to=2026-01-02T23:59:59Z`);
   assert.equal(csv.status,200,csv.text);assert(csv.text.includes('回答者ID'));assert(csv.text.includes('2026-01-02 09:00:00'));assert(csv.text.includes('1.50 (90s)'));assert(!csv.text.includes('other'));
   assert.equal((await request(`/api/surveys/${survey._id}/datasets/results/csv?from=bad`)).status,400);
