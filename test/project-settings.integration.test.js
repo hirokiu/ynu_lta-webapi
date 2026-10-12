@@ -13,7 +13,7 @@ const {ProjectSettings}=require('../dist/projects/settings');
  async function call(path,token,body) { const r=await fetch('http://127.0.0.1:'+server.address().port+path,{method:body?'PUT':'GET',headers:{'Content-Type':'application/json',...(token?{token}:{})},body:body?JSON.stringify(body):undefined});return {status:r.status,body:await r.json(),cache:r.headers.get('cache-control')}; }
  try {
   assert.equal((await call('/api/project')).status,401);
-  const initial=await call('/api/project','participant'); assert.equal(initial.cache,'no-store');assert.deepEqual(initial.body,{projectId:'proto',displayName:'Proto',revision:0,timezone:'Asia/Tokyo'});
+  const initial=await call('/api/project','participant'); assert.equal(initial.cache,'no-store');assert.deepEqual(initial.body,{projectId:'proto',subtitle:null,displayName:'Proto',revision:0,timezone:'Asia/Tokyo'});
   assert.equal((await call('/api/admin/project','participant',{displayName:'bad',revision:0})).status,401);
   for(const name of ['', '   ', 'a\nb', 'a'.repeat(81), 42, 'a\u202eb']) assert.equal((await call('/api/admin/project','owner',{displayName:name,revision:0})).status,400);
   assert.equal((await call('/api/admin/project','owner',{displayName:'名前',revision:0,apiBaseUrl:'https://untrusted.invalid'})).status,400);
@@ -32,6 +32,12 @@ const {ProjectSettings}=require('../dist/projects/settings');
   service.saveNewGroupAssignment=(sid,gid,from,to,callback)=>{dates.push(from.toISOString());callback(201,{});};
   await new Promise((resolve,reject)=>service.createGroupAssignmentSeries({header:()=> 'owner',headers:{token:'owner'},params:{},body:{}},'survey','group','2026-03-07','2026-03-09',['09:00'],0,{status(code){assert.equal(code,201);return this;},send(){resolve();}}));
   assert.deepEqual(dates,['2026-03-07T14:00:00.000Z','2026-03-08T13:00:00.000Z','2026-03-09T13:00:00.000Z']);
+  for (const subtitle of ['x'.repeat(121), 'bad\nline', 12, 'a\u202eb']) assert.equal((await call('/api/admin/project','owner',{displayName:'名前',revision:4,subtitle})).status,400);
+  const caption=await call('/api/admin/project','owner',{displayName:'名前',revision:4,subtitle:'  研究へのご協力ありがとうございます  '});
+  assert.equal(caption.body.subtitle,'研究へのご協力ありがとうございます');
+  assert.equal((await call('/api/me','participant')).body.project.subtitle,caption.body.subtitle);
+  assert.equal((await call('/api/admin/project','owner',{displayName:'互換',revision:5})).body.subtitle,caption.body.subtitle);
+  assert.equal((await call('/api/admin/project','owner',{displayName:'空欄',revision:6,subtitle:''})).body.subtitle,'');
   process.env.ACCOUNT_SCOPE='dev';assert.equal((await call('/api/project','owner')).body.displayName,'Dev');
   console.log('PASS: authenticated metadata, admin-only edit, validation, concurrent first creation, stale update, audit, /me compatibility and environment isolation.');
  }finally{await new Promise(r=>server.close(r));await mongoose.connection.dropDatabase();await mongoose.disconnect();}
