@@ -3,7 +3,11 @@ import { promises as fs } from 'fs';
 import { createReadStream } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-const converter = require('json-2-csv');
+// Export rows are already flat. Treat dotted multi-choice column names literally.
+function csvCell(value: any): string {
+    const text = value == null ? '' : String(value);
+    return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+}
 async function* readRows(path: string) {
     const stream = createReadStream(path, {encoding: 'utf8', highWaterMark: 65536});
     let pending = '';
@@ -78,9 +82,8 @@ export async function exportFile(res: Response, source: () => Promise<any>, form
             sorted.forEach(k => { normalized[k] = row[k] == null ? '' : row[k]; });
             if (format === 'json') await write((first ? '' : ',') + JSON.stringify(normalized));
             else {
-                const csv = await new Promise<string>((resolve, reject) => converter.json2csv([normalized],
-                    (error: any, value: string) => error ? reject(error) : resolve(value),
-                    {unwindArrays: true, prependHeader: first}));
+                const csv = (first ? sorted.map(csvCell).join(',') + '\n' : '') +
+                    sorted.map(key => csvCell(normalized[key])).join(',');
                 await write((first ? '' : '\n') + csv);
             }
             first = false;

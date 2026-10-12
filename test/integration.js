@@ -52,9 +52,10 @@ async function main() {
   assert.equal(csv.status,200,csv.text);assert(csv.text.includes('回答者ID'));assert(csv.text.includes('2026-01-02 09:00:00'));assert(csv.text.includes('1.50 (90s)'));assert(!csv.text.includes('other'));
   assert.equal((await request(`/api/surveys/${survey._id}/datasets/results/csv?from=bad`)).status,400);
   const allCsv=await request(`/api/surveys/${survey._id}/datasets/results/csv`);
-  const expectedCsv=await new Promise((resolve,reject)=>require('json-2-csv').json2csv(SurveyService.getDatasetsOfAssignments(results),(err,text)=>err?reject(err):resolve(text),{unwindArrays:true}));
+  const expectedCsv='回答者ID,回答時刻,回答設問数,q01,q01.1,q01.2,q02\nhiroki_u,2026-01-02 09:00:00 +09:00,2,"1,2",1,1,1.50 (90s)\nother,2026-01-03 09:00:00 +09:00,1,2,,1,';
   assert.equal(allCsv.status,200);
-  assert.equal(allCsv.text,expectedCsv,'CSV must match the original formatter across sparse/multi-value columns');
+  assert.equal(allCsv.text,expectedCsv,'Sparse multiple-choice cells must be empty, never undefined');
+
 
   const {ProjectSettings}=require('../src/projects/settings');
   await ProjectSettings.create({_id:'proto',displayName:'Proto',timezone:'America/New_York',revision:1});
@@ -83,7 +84,7 @@ async function main() {
   const foreignResult=await AssignmentResults.create({assignment:foreignAssignment._id,userId:'foreign',dataset:{answers:[{index:1,type:'single',intValue:1}]}});
   assert.equal((await request(exportPath,'test-only',{scope:'selected',format:'json',ids:[String(foreignResult._id)]})).status,422);
   assert.equal((await request(exportPath,'test-only',{scope:'all',format:'json'})).json().length,2);
-  await Assignment.updateOne({_id:assignments[1]._id},{$set:{dataset:{answers:[{index:1,type:'single',intValue:5}]},lastOpenedAt:new Date('2026-01-04T00:00:00Z')}});
+  await Assignment.updateOne({_id:assignments[1]._id},{$set:{dataset:{answers:[{index:1,type:'single',intValue:5},{index:2,type:'free',stringValue:'研究,"引用"\n次の行'}]},lastOpenedAt:new Date('2026-01-04T00:00:00Z')}});
   // Same assignment + user in both formats is represented once, by the newer format.
   await Assignment.updateOne({_id:assignments[0]._id},{$set:{dataset:{answers:[{index:1,type:'single',intValue:99}]},lastOpenedAt:new Date('2026-01-04T00:00:00Z')}});
   const combined=await request(exportPath,'test-only',{scope:'all',format:'json'});
@@ -93,7 +94,7 @@ async function main() {
   const historyPage=(await request(`/api/surveys/${survey._id}/results?limit=1&page=3`)).json();
   assert.equal(historyPage.total,3);assert.equal(historyPage.items[0]._id,'legacy:'+assignments[1]._id);assert.equal(historyPage.hasMore,false);
   const historyPeriod=await request(exportPath,'test-only',{scope:'period',format:'csv',from:'2026-01-04T00:00:00Z',to:'2026-01-04T23:59:59Z'});
-  assert.equal(historyPeriod.status,200);assert(historyPeriod.text.includes('5'));assert(!historyPeriod.text.includes('99'));
+  assert.equal(historyPeriod.status,200);assert(historyPeriod.text.includes('"研究,""引用""\n次の行"'));assert(historyPeriod.text.includes('5'));assert(!historyPeriod.text.includes('99'));
   assert.equal((await request(exportPath,'test-only',{scope:'selected',format:'json',ids:['legacy:'+foreignAssignment._id]})).status,422);
   // Verify formatter parity against immutable recorded baseline when supplied.
   if(process.env.BASELINE_SERVICE){
