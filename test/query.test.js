@@ -2,7 +2,7 @@ const assert = require('assert');
 const {pageOptions, literalSearch, dateRange} = require('../src/utils/query');
 assert.deepStrictEqual(pageOptions({}), {page:1,limit:50,skip:0});
 assert.equal(pageOptions({page:'3',limit:'20'}).skip,40);
-for (const query of [{page:0},{limit:101},{page:'x'},{limit:-1}]) assert.throws(()=>pageOptions(query));
+for (const query of [{page:0},{limit:501},{page:'x'},{limit:-1}]) assert.throws(()=>pageOptions(query));
 assert(literalSearch('a+b[0].*').test('a+b[0].*'));
 assert(!literalSearch('a+b').test('aaab'));
 assert.throws(()=>literalSearch({$ne:1}));
@@ -23,3 +23,5 @@ assert.equal(exportOptions({scope:'selected',ids:['a'.repeat(24),'a'.repeat(24)]
 console.log('Export validation tests passed');
 
 assert.deepStrictEqual(exportOptions({scope:'selected',ids:['LEGACY:'+'A'.repeat(24),'legacy:'+'a'.repeat(24)]},true).selectedIds,['legacy:'+'a'.repeat(24)]);
+
+assert.equal(pageOptions({limit:500}).limit,500);

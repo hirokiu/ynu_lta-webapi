@@ -57,6 +57,13 @@ async function main() {
   assert.equal((await request('/api/admin/assignments?t=not-present')).json().total,0);
   const last=(await request('/api/admin/assignments?limit=50&page=3')).json();assert.equal(last.total,120);assert.equal(last.items.length,20);assert.equal(last.hasMore,false);
   assert.equal((await request('/api/admin/assignments?from=2026-02-01&to=2026-02-02')).json().total,0);
+  assert.equal((await request('/api/admin/assignments?limit=500')).json().items.length,120);
+  assert.equal((await request('/api/admin/assignments?userId=other&surveyName=Literal')).json().total,10);
+  assert.equal((await request('/api/admin/assignments?groupId=missing')).json().total,0);
+  assert.equal((await request('/api/admin/assignments?opened=no&notified=no')).json().total,120);
+  assert.equal((await request('/api/admin/assignments?opened=yes')).json().total,0);
+  assert.equal((await request('/api/admin/assignments?opened=invalid')).status,400);
+  assert.equal((await request('/api/admin/surveys?t=Synthetic')).json().total,1);
   const csv=await request(`/api/surveys/${survey._id}/datasets/results/csv?from=2026-01-02T00:00:00Z&to=2026-01-02T23:59:59Z`);
   assert.equal(csv.status,200,csv.text);assert(csv.text.includes('回答者ID'));assert(csv.text.includes('2026-01-02 09:00:00'));assert(csv.text.includes('1.50 (90s)'));assert(!csv.text.includes('other'));
   assert.equal((await request(`/api/surveys/${survey._id}/datasets/results/csv?from=bad`)).status,400);

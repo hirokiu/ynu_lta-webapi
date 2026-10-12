@@ -356,12 +356,23 @@ export class SurveyService {
                     const clauses: any[] = [];
                     if (range) clauses.push({ $or: [{ publishAt: range }, { publishFrom: { $lte: range.$lte }, publishTo: { $gte: range.$gte } }] });
                     if (search) clauses.push({ $or: [{ "survey.name": search }, { userId: search }, { groupId: search }] });
+                    for (const [parameter, field] of [['surveyName', 'survey.name'], ['userId', 'userId'], ['groupId', 'groupId']]) {
+                        const value = literalSearch(req.query[parameter]);
+                        if (value) clauses.push({[field]: value});
+                    }
+                    for (const [parameter, field] of [['opened', 'firstOpenedAt'], ['notified', 'publishNotifiedAt']]) {
+                        const value = req.query[parameter];
+                        if (value !== undefined && value !== '') {
+                            if (!['yes', 'no'].includes(String(value)) || typeof value !== 'string') throw new global.Error('Invalid status');
+                            clauses.push({[field]: value === 'yes' ? {$ne: null} : null});
+                        }
+                    }
                     if (req.query.surveyId) {
                         if (!/^[a-f0-9]{24}$/i.test(String(req.query.surveyId))) throw new global.Error("Invalid survey ID");
                         clauses.push({ "survey._id": req.query.surveyId });
                     }
                     if (clauses.length) filter = { $and: clauses };
-                } else if (search) filter.name = search;
+                } else if (search) filter.$or = [{name: search}, {title: search}];
             } catch (error) { res.status(400).json({ error: "Invalid filters" }); return; }
             try {
                 const model: any = kind === "assignments" ? Assignment : Survey;

@@ -3,7 +3,7 @@ export function pageOptions(query: any) {
     const page = query.page === undefined ? 1 : Number(query.page);
     const limit = query.limit === undefined ? 50 : Number(query.limit);
     if (!Number.isSafeInteger(page) || page < 1 || page > 100000 ||
-        !Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error("Invalid page or limit");
+        !Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid page or limit");
     return { page, limit, skip: (page - 1) * limit };
 }
 export function literalSearch(value: any) {
