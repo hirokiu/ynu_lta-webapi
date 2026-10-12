@@ -36,13 +36,27 @@ export async function surveyAnswerPage(sid: string, skip: number, limit: number)
     const {modern, legacyPipeline} = await surveyAnswerSources(sid);
     const modernCount = await AssignmentResults.countDocuments(modern).maxTimeMS(15000).exec();
     const legacyCount = await Assignment.aggregate([...legacyPipeline, {$count: 'count'}]).option({maxTimeMS: 15000}).exec();
-    const modernRows: any[] = skip < modernCount ? await AssignmentResults.find(modern)
-        .select('userId lastOpenedAt updatedAt dataset.answers.index').sort({updatedAt: -1, _id: -1}).skip(skip).limit(limit).lean().maxTimeMS(15000).exec() : [];
-    const remaining = limit - modernRows.length;
-    const legacyRows: any[] = remaining ? await Assignment.aggregate([...legacyPipeline,
-        {$sort: {updatedAt: -1, _id: -1}}, {$skip: Math.max(0, skip - modernCount)}, {$limit: remaining},
-        {$project: {userId: 1, lastOpenedAt: 1, updatedAt: 1, 'dataset.answers.index': 1}}]).option({maxTimeMS: 15000}).exec() : [];
-    const map = (row: any, legacy: boolean) => ({_id: (legacy ? 'legacy:' : '') + String(row._id), userId: row.userId,
-        answeredAt: row.lastOpenedAt || row.updatedAt, answerCount: row.dataset.answers.length, source: legacy ? 'legacy' : 'results'});
-    return {total: modernCount + (legacyCount[0] ? legacyCount[0].count : 0), items: [...modernRows.map(r => map(r, false)), ...legacyRows.map(r => map(r, true))]};
+    const cursors: any[] = [
+        AssignmentResults.find(modern).select('userId lastOpenedAt updatedAt dataset.answers.index')
+            .sort({updatedAt: -1, _id: -1}).lean().maxTimeMS(15000).cursor({batchSize: 50}),
+        Assignment.aggregate([...legacyPipeline, {$sort: {updatedAt: -1, _id: -1}},
+            {$project: {userId: 1, lastOpenedAt: 1, updatedAt: 1, 'dataset.answers.index': 1}}])
+            .option({maxTimeMS: 15000}).cursor({batchSize: 50}).exec()
+    ];
+    const items: any[] = [];
+    try {
+        const heads = await Promise.all(cursors.map(c => c.next()));
+        for (let offset = 0; offset < skip + limit && heads.some(Boolean); offset++) {
+            // Merge sorted cursors so historical storage does not put recent answers on later pages.
+            const left = heads[0], right = heads[1];
+            const timeDifference = left && right ? new Date(left.updatedAt || 0).getTime() - new Date(right.updatedAt || 0).getTime() : 0;
+            const index = !left ? 1 : !right ? 0 : timeDifference > 0 ||
+                (timeDifference === 0 && String(left._id) >= String(right._id)) ? 0 : 1;
+            const row = heads[index];
+            if (offset >= skip) items.push({_id: (index ? 'legacy:' : '') + String(row._id), userId: row.userId,
+                answeredAt: row.lastOpenedAt || row.updatedAt, answerCount: row.dataset.answers.length, source: index ? 'legacy' : 'results'});
+            heads[index] = await cursors[index].next();
+        }
+    } finally { await Promise.all(cursors.map(c => c.close())); }
+    return {total: modernCount + (legacyCount[0] ? legacyCount[0].count : 0), items};
 }

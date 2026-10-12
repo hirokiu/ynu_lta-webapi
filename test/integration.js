@@ -92,7 +92,9 @@ async function main() {
   const mixed=await request(exportPath,'test-only',{scope:'selected',format:'json',ids:[String(savedResults[0]._id),'legacy:'+assignments[1]._id]});
   assert.equal(mixed.status,200,mixed.text);assert.equal(mixed.json().length,2);
   const historyPage=(await request(`/api/surveys/${survey._id}/results?limit=1&page=3`)).json();
-  assert.equal(historyPage.total,3);assert.equal(historyPage.items[0]._id,'legacy:'+assignments[1]._id);assert.equal(historyPage.hasMore,false);
+  assert.equal(historyPage.total,3);assert.equal(historyPage.hasMore,false);
+  const newestPage=(await request(`/api/surveys/${survey._id}/results?limit=1&page=1`)).json();
+  assert.equal(newestPage.items[0]._id,'legacy:'+assignments[1]._id,'Recent legacy answers must appear before older modern answers');
   const historyPeriod=await request(exportPath,'test-only',{scope:'period',format:'csv',from:'2026-01-04T00:00:00Z',to:'2026-01-04T23:59:59Z'});
   assert.equal(historyPeriod.status,200);assert(historyPeriod.text.includes('"研究,""引用""\n次の行"'));assert(historyPeriod.text.includes('5'));assert(!historyPeriod.text.includes('99'));
   assert.equal((await request(exportPath,'test-only',{scope:'selected',format:'json',ids:['legacy:'+foreignAssignment._id]})).status,422);
