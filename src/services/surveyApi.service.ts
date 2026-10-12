@@ -1,6 +1,7 @@
 import { Request, Response, response } from "express";
 import { MongooseDocument, Mongoose, Error } from "mongoose";
 import { Model, Document, DocumentQuery } from "mongoose";
+import { currentProject } from '../projects/settings';
 import { exportFile, ExportError } from '../utils/exportFile';
 
 var moment = require('moment-timezone');
@@ -700,7 +701,7 @@ export class SurveyService {
 
     public createGroupAssignmentSeries(reqJustForAuth: Request, sid: string, gid: string, startYMD: string, endYMD: string, hours: Array<string>, plusMinusRandomMinutes: number, res: Response) {
         SurveyService.dbgReq(reqJustForAuth);
-        checkIfAuthenticatedAdmin(reqJustForAuth, res, (uidJustForAuth: string) => {
+        checkIfAuthenticatedAdmin(reqJustForAuth, res, async (uidJustForAuth: string) => {
             SurveyService.dbgMsg("greetings admin " + uidJustForAuth + "!");
 
             SurveyService.dbgMsg("createGroupAssignmentSeries: sid: " + sid + ", gid: " + gid + ", dates: " + startYMD + " - " + endYMD + " at " + hours.toString() + " plus minus " + plusMinusRandomMinutes + ".");
@@ -712,13 +713,15 @@ export class SurveyService {
                 res.status(400).send(eMsg);
             }
 
+            let timezone: string;
+            try { timezone = (await currentProject()).timezone; } catch (_) { res.status(503).send('Could not load project timezone'); return; }
             var daysInSchedule: number = 0;
-            for (var m = moment(startYMD); m.diff(moment(endYMD), 'days') <= 0; m.add(1, 'days')) {
+            for (var m = moment.tz(startYMD, timezone); m.diff(moment.tz(endYMD, timezone), 'days') <= 0; m.add(1, 'days')) {
                 daysInSchedule++;
                 SurveyService.dbgMsg("Scheduling for date " + m.format('YYYY-MM-DD'));
                 for (var i = 0; i < hours.length; i = i + 1) {
                     var h = hours[i];
-                    var publishAtMoment = moment.tz(m.format('YYYY-MM-DD') + " " + h, "Asia/Tokyo"); //TODO: now assuming admin is in sthlm
+                    var publishAtMoment = moment.tz(m.format('YYYY-MM-DD') + " " + h, timezone);
                     SurveyService.dbgMsg("publishAtMoment is " + publishAtMoment);
 
 
@@ -1206,7 +1209,7 @@ export class SurveyService {
 */
 
 
-private static getDatasetsOfAssignments(assignments: any) {
+private static getDatasetsOfAssignments(assignments: any, timezone = 'Asia/Tokyo') {
     let flattened = new Array();
     let allKeys = new Set<string>();
 
@@ -1222,9 +1225,7 @@ private static getDatasetsOfAssignments(assignments: any) {
         //if (a.date || a.createdAt) {
         if (a.lastOpenedAt || a.updatedAt) {
             //const date = new Date(a.date || a.updatedAt);
-            const date = new Date(a.lastOpenedAt || a.updatedAt);
-            date.setHours(date.getHours() + 9);
-            flatA['回答時刻'] = date.toISOString().replace('T', ' ').substring(0, 19);
+            flatA['回答時刻'] = moment(a.lastOpenedAt || a.updatedAt).tz(timezone).format('YYYY-MM-DD HH:mm:ss Z');
         }
         flatA['回答設問数'] = a.dataset.answers.length;
 
@@ -1309,9 +1310,12 @@ private static getDatasetsOfAssignments(assignments: any) {
     private static legacyExport(req: Request, res: Response, format: string) {
         checkIfAuthenticatedAdmin(req, res, async () => {
             if (!/^[a-f0-9]{24}$/i.test(req.params.sid)) { res.status(400).json({error: 'Invalid survey'}); return; }
+            let timezone: string;
+            try { timezone = (await currentProject()).timezone; } catch (_) { res.status(503).json({error: 'Could not load project timezone'}); return; }
+            res.setHeader('X-Export-Timezone', timezone);
             await exportFile(res, async () => Assignment.find({"survey._id": req.params.sid})
                 .select('userId user dataset lastOpenedAt updatedAt').sort('-publishedAt')
-                .lean().maxTimeMS(60000).cursor({batchSize: 1}), format, SurveyService.getDatasetsOfAssignments);
+                .lean().maxTimeMS(60000).cursor({batchSize: 1}), format, records => SurveyService.getDatasetsOfAssignments(records, timezone));
         });
     }
 
@@ -1342,6 +1346,9 @@ private static getDatasetsOfAssignments(assignments: any) {
                 const options = exportOptions(req.method === 'POST' ? req.body : req.query, req.method === 'POST');
                 range = options.range; selectedIds = options.selectedIds;
             } catch (error) { res.status(400).json({ error: "Invalid export options" }); return; }
+            let timezone: string;
+            try { timezone = (await currentProject()).timezone; } catch (_) { res.status(503).json({error: 'Could not load project timezone'}); return; }
+            res.setHeader('X-Export-Timezone', timezone);
             await exportFile(res, async () => {
                 const ids = await Assignment.find({ "survey._id": req.params.sid }).select("_id")
                     .limit(50001).lean().maxTimeMS(15000).exec();
@@ -1351,7 +1358,7 @@ private static getDatasetsOfAssignments(assignments: any) {
                 if (range) filter.$or = [{ lastOpenedAt: range }, { lastOpenedAt: null, updatedAt: range }];
                 return AssignmentResults.find(filter).select("userId user dataset lastOpenedAt updatedAt")
                     .lean().maxTimeMS(60000).cursor({batchSize: 1});
-            }, String(format), SurveyService.getDatasetsOfAssignments, selectedIds && selectedIds.length);
+            }, String(format), records => SurveyService.getDatasetsOfAssignments(records, timezone), selectedIds && selectedIds.length);
         });
     }
 

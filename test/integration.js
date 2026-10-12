@@ -1,4 +1,5 @@
 // Run against an isolated disposable database only. Never point this at production.
+process.env.ACCOUNT_SCOPE='proto';
 const assert = require('assert');
 const mongoose = require('mongoose');
 const express = require('express');
@@ -55,6 +56,15 @@ async function main() {
   assert.equal(allCsv.status,200);
   assert.equal(allCsv.text,expectedCsv,'CSV must match the original formatter across sparse/multi-value columns');
 
+  const {ProjectSettings}=require('../src/projects/settings');
+  await ProjectSettings.create({_id:'proto',displayName:'Proto',timezone:'America/New_York',revision:1});
+  const zonedCsv=await request(`/api/surveys/${survey._id}/datasets/results/csv`);
+  assert(zonedCsv.text.includes('2026-01-01 19:00:00 -05:00'));
+  const zonedJson=await request(`/api/surveys/${survey._id}/datasets/results/json`);
+  assert.equal(zonedJson.status,200);assert.equal(zonedJson.json()[0]['回答時刻'],'2026-01-01 19:00:00 -05:00');
+  const summer=SurveyService.getDatasetsOfAssignments([{...results[0],lastOpenedAt:'2026-07-01T00:00:00Z'}],'America/New_York');
+  assert.equal(summer[0]['回答時刻'],'2026-06-30 20:00:00 -04:00');
+  await ProjectSettings.updateOne({_id:'proto'},{$set:{timezone:'Asia/Tokyo'}});
   const mine=(await request('/api/users/hiroki_u/allassignments')).json();assert.equal(mine.length,110);assert.equal(mine.find(a=>a._id===String(assignments[0]._id)).dataset.answers.length,2);
   for(const size of [10,20,50,100]) assert.equal((await request('/api/admin/assignments?limit='+size)).json().items.length,size);
   const resultPage=(await request(`/api/surveys/${survey._id}/results?limit=1`)).json();

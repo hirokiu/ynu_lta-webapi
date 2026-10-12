@@ -1,3 +1,4 @@
+import { Account, accountsEnabled, accountScope } from './accounts/models';
 import { Application } from 'express';
 import { currentProject, projectRoutes } from './projects/settings';
 import { accountRoutes } from './accounts/routes';
@@ -25,7 +26,14 @@ export class Controller {
         // Optional display metadata must never prevent existing clients from logging in.
         let project = null;
         try { project = await currentProject(); } catch (_) { /* Keep authentication available. */ }
-        res.json({ userId, project });
+        let username = userId;
+        try {
+          if (accountsEnabled()) {
+            const account: any = await Account.findOne({scope: accountScope(), userId}).select('username').lean().exec();
+            if (account) username = account.username;
+          }
+        } catch (_) { /* The stable identity remains available. */ }
+        res.json({ userId, username, project });
       });
     });
 
