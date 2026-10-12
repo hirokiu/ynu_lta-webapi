@@ -7,3 +7,5 @@ adminページAPIのtotalはitemsと同一filterでcountDocuments、15秒の制�
 実画面検証で既存Groups検索が存在しない`/groups/search/`を参照し、詳細取得に解釈されnullになる問題を発見。`/groups?t=...`へ変更し、認証付きの部分一致検索を実装。検索文字は正規表現として解釈せずリテラル扱い。データ変更なし。
 
 検証：隔離MongoDBの架空データで総件数・検索0件・期間0件・端数ページ・Groups部分一致と認証を確認。Web/APIのproduction build成功。ブラウザーでUsers46、Groups12、Surveys56、Assignments4,186の上下表示一致、Surveys 51〜56、Assignments 21〜40、Users検索0件を確認。最終反映後にGroups検索の実画面も確認する。
+
+最終反映：API `e222a80` / Web `3cf8e9b`、release `proto-counts-r2-20261012`。配備前バックアップ `survey-20261012T034747Z-3313373.archive.gz` 成功。Groupsの検索0件（0〜0）と部分一致8件（1〜8）の上下表示一致を実ブラウザーで確認し、修正後の実行時エラーなし。Survey内の配信一覧3,330件・回答一覧1,081件も上下に1〜50件表示を確認。
