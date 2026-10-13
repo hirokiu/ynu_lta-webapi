@@ -45,3 +45,9 @@ OPPOは正式署名Proto版2.0.0(6)で従来アカウントのログイン・一
 DevPushProvisioningTest#enableSingleDeviceTestを明示opt-inで実行（1 test PASS）。Dev Firebase/Bundle IDを照合し、OPPOだけに合成Survey通知1通を送信。FCM受付成功、上松が通知からの表示・回答送信を確認。DBでも本人所有のAndroid用配信へ回答1件を保存済みと確認（2026-10-13T15:00:31.821Z）。iPhone用も回答1件を維持。
 
 DevのCSV/JSON照合を追加実行したが、稼働Devイメージにはdist/utils/surveyAnswersがなく、検証開始前にMODULE_NOT_FOUNDで停止した。出力成功とは扱わない。Protoの最新版での出力処理は既存の検証記録と区別し、新規参加者のProtoでの通常端末登録・スケジュール通知・回答・出力の一貫確認を正式配布前に残す。今回、環境更新や既存配信設定の変更はしていない。
+
+## Proto最終確認開始（2026-10-14）
+
+通常通知・配信準備は有効、認証はUID方式、新規招待有効を確認。既存管理者の権限で公開APIの招待→パスワード登録→実Firebase認証→本人ID取得を実行し、iOS/Android別々の検証参加者を新規作成。既存アカウントは変更していない。
+
+資格情報はサーバー `~/kirokun-proto/ops/state/qa-onboarding-20261014.json` とMacの0600案内ファイルにだけ保管。両端末でのProtoログインとホーム画面への復帰待ち。Surveyはまだ作成・配信しておらず、登録された通知先の確認後に通常スケジュール配信で試験する。Devで行った直接送信と区別する。
