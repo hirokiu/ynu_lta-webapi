@@ -68,3 +68,14 @@ Dev稼働checkout dbcd660を基準にfix/dev-refactoring-finishを作成。Proto
 - 実機確認で残る事項: 通常予約配信、iOS/Android通知・回答、公開前/期限前後の挙動、DB保存と管理画面表示、その回答のブラウザーCSV/JSON取得・値照合。Firebase環境間の実トークン拒否試験も未完了。
 - Protoの変更・配備・通知設定変更は実施していない。
 - Google Play Consoleアカウント承認完了はユーザー報告として記録。Consoleの今回の直接再確認、アプリ審査提出、一般公開は未実施。
+
+## Dev実機通知登録の欠落（2026-10-14）
+
+両端末接続・ユーザーのDevログイン後も検証UserにdeviceTokenなし。現行iOS/AndroidコードはDevで端末登録処理を早期returnしていた。通常配信の前提が欠けており、過去の直接FCM送信成功とは区別する。
+
+Devホスト（または検証localhost）に限定した登録ガードと、/meで本人ID解決後の登録呼出しを追加。Protoロジック・配布物・サーバーは変更なし。
+- iOS ee4f510、Android df13852、各fix/dev-push-registrationブランチ。
+- iOS DevDebugビルド成功・iPhone 11 Proへ上書き起動成功。
+- Android DevDebugビルド成功・OPPOへ上書き成功。iPhone検証中の通知先上書きを避けAndroidは起動していない。
+- iPhone接続先の成果物設定はhttps://dev.kirokun.alchembright.com/api/を確認。
+- サーバーでの通知先登録成功はまだ未確認。更新アプリで一覧表示を本人に確認依頼中。通常通知は有効化していない。
