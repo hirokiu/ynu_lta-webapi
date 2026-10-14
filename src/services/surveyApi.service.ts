@@ -1,3 +1,4 @@
+import { answerWindowError, answerWriteGuard } from '../utils/answerWindow';
 import { Request, Response, response } from "express";
 import { MongooseDocument, Mongoose, Error } from "mongoose";
 import { Model, Document, DocumentQuery } from "mongoose";
@@ -531,21 +532,28 @@ export class SurveyService {
                 res.status(400).json({error: 'Invalid answer submission'}); return;
             }
             try {
-                const assignment: any = await Assignment.findById(req.params.aid).select('userId groupId').lean().exec();
+                const assignment: any = await Assignment.findById(req.params.aid).select('userId groupId publishAt expireAt').lean().exec();
                 if (!assignment) { res.sendStatus(404); return; }
                 const update = {$set: {dataset: {answers: req.body.answers}}};
                 if (assignment.groupId) {
                     const member = await Group.exists({groupId: assignment.groupId, userIds: targetUserId});
                     if (!member) { res.sendStatus(403); return; }
+                    const recipient: any = await AssignmentResults.findOne({assignment: assignment._id, userId: targetUserId})
+                        .select('publishAt expireAt').lean().exec();
+                    if (!recipient) { res.status(404).json({error: 'Assignment recipient was not prepared'}); return; }
+                    const windowError = answerWindowError(recipient, Date.now());
+                    if (windowError) { res.status(409).json({error: windowError}); return; }
                     const result = await AssignmentResults.findOneAndUpdate(
-                        {assignment: assignment._id, userId: targetUserId}, update, {new: true}).exec();
-                    if (!result) { res.status(404).json({error: 'Assignment recipient was not prepared'}); return; }
+                        {assignment: assignment._id, userId: targetUserId, ...answerWriteGuard()}, update, {new: true}).exec();
+                    if (!result) { res.status(409).json({error: 'Assignment is closed or already answered'}); return; }
                     res.status(201).send('the Dataset has been stored.');
                 } else {
                     if (assignment.userId !== targetUserId) { res.sendStatus(403); return; }
+                    const windowError = answerWindowError(assignment, Date.now());
+                    if (windowError) { res.status(409).json({error: windowError}); return; }
                     const result = await Assignment.findOneAndUpdate(
-                        {_id: assignment._id, userId: targetUserId}, update, {new: true}).exec();
-                    if (!result) { res.sendStatus(404); return; }
+                        {_id: assignment._id, userId: targetUserId, ...answerWriteGuard()}, update, {new: true}).exec();
+                    if (!result) { res.status(409).json({error: 'Assignment is closed or already answered'}); return; }
                     res.json(result);
                 }
             } catch (_) { res.status(500).json({error: 'Could not save answers'}); }

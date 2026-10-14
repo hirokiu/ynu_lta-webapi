@@ -1,0 +1,13 @@
+const assert=require('assert');
+const {answerWindowError,answerWriteGuard}=require('../dist/utils/answerWindow');
+const start=Date.parse('2026-10-14T14:59:59Z');
+const end=Date.parse('2026-10-14T15:00:01Z');
+const record={publishAt:new Date(start),expireAt:new Date(end)};
+assert.equal(answerWindowError(record,start-1),'Assignment is not open yet');
+for(const now of [start,start+1000,end-1]) assert.equal(answerWindowError(record,now),null);
+for(const now of [end,end+1]) assert.equal(answerWindowError(record,now),'Assignment has expired');
+for(const r of [{},{publishAt:record.publishAt},{...record,expireAt:new Date(NaN)},{...record,expireAt:record.publishAt}]) assert.equal(answerWindowError(r,start),'Invalid assignment schedule');
+const guard=answerWriteGuard();
+assert.deepEqual(guard['dataset.answers.0'],{$exists:false});
+assert(JSON.stringify(guard).includes('$$NOW'));
+console.log('PASS: closed-before, inclusive-start, exclusive-expiry, JST midnight, missing/invalid schedule');
