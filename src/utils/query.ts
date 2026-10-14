@@ -28,8 +28,8 @@ export function exportOptions(input: any, explicitScope: boolean) {
         if (input.scope !== 'period' && range) throw new Error('Unexpected dates');
         if (input.scope === 'selected') {
             if (!Array.isArray(input.ids) || input.ids.length < 1 || input.ids.length > 1000 ||
-                input.ids.some((id: any) => typeof id !== 'string' || !/^[a-f0-9]{24}$/i.test(id))) throw new Error('Invalid selection');
-            selectedIds = Array.from(new Set<string>(input.ids));
+                input.ids.some((id: any) => typeof id !== 'string' || !/^(legacy:)?[a-f0-9]{24}$/i.test(id))) throw new Error('Invalid selection');
+            selectedIds = Array.from(new Set<string>(input.ids.map((id: string) => id.toLowerCase())));
         } else if (input.ids !== undefined) throw new Error('Unexpected selection');
     }
     return { range, selectedIds };
