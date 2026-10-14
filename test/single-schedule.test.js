@@ -1,0 +1,13 @@
+const assert=require('assert');
+const p=require.resolve('../dist/services/firebaseAdmin.service');
+require.cache[p]={id:p,filename:p,loaded:true,exports:{__esModule:true,default:{}}};
+const api=require('../dist/services/surveyApi.service');
+api.checkIfAuthenticatedAdmin=(_req,_res,done)=>done('synthetic-admin');
+const service=new api.SurveyService();let captured;
+service.saveNewAssignment=(sid,uid,publish,expire,done)=>{captured={sid,uid,publish,expire};done(201,{})};
+service.scheduleSurveyForUserOnce({method:'POST',url:'/qa'},'synthetic-survey','synthetic-user','1800000000',{status(n){assert.equal(n,201);return this},send(){}});
+assert(captured.expire instanceof Date);
+assert(Number.isFinite(captured.expire.getTime()));
+assert(captured.expire>captured.publish);
+assert.equal(captured.publish.getTime(),1800000000000);
+console.log('PASS: single scheduled assignment receives valid expiry Date after publication.');

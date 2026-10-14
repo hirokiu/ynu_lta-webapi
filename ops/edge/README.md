@@ -13,3 +13,13 @@
 公開停止：`docker compose -f ops/edge/compose.yaml down`（DBと証明書ボリュームは削除しない）。
 
 公式仕様：https://caddyserver.com/docs/automatic-https
+
+## Dev実機API公開（2026-10-06）
+
+ユーザー承認により`sites/dev.caddy`を追加。Devホストの`/api/*`のみ
+127.0.0.1:8082へ転送し、それ以外は404。管理画面は従来のSSH経路を使う。
+Firebase kirokun-dev、ACCOUNT_SCOPE=dev、AUTH_MODE=uid、既存UID対応と招待認証を維持。
+通知・配信準備はfalseのまま。Protoのホスト設定・DB・認証は変更しない。
+証明書検証付き外部確認: health=200、me/admin/surveys未認証=401、Devルート=404、Proto login=200。
+公開を戻す場合はdev.caddyだけをsites外へ移し、上記validate/reloadを実行する。
+ゲートウェイ全体の停止はProtoも停止するため、Devだけの撤回には使用しない。

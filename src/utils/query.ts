@@ -3,7 +3,7 @@ export function pageOptions(query: any) {
     const page = query.page === undefined ? 1 : Number(query.page);
     const limit = query.limit === undefined ? 50 : Number(query.limit);
     if (!Number.isSafeInteger(page) || page < 1 || page > 100000 ||
-        !Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error("Invalid page or limit");
+        !Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid page or limit");
     return { page, limit, skip: (page - 1) * limit };
 }
 export function literalSearch(value: any) {
@@ -28,8 +28,8 @@ export function exportOptions(input: any, explicitScope: boolean) {
         if (input.scope !== 'period' && range) throw new Error('Unexpected dates');
         if (input.scope === 'selected') {
             if (!Array.isArray(input.ids) || input.ids.length < 1 || input.ids.length > 1000 ||
-                input.ids.some((id: any) => typeof id !== 'string' || !/^[a-f0-9]{24}$/i.test(id))) throw new Error('Invalid selection');
-            selectedIds = Array.from(new Set<string>(input.ids));
+                input.ids.some((id: any) => typeof id !== 'string' || !/^(legacy:)?[a-f0-9]{24}$/i.test(id))) throw new Error('Invalid selection');
+            selectedIds = Array.from(new Set<string>(input.ids.map((id: string) => id.toLowerCase())));
         } else if (input.ids !== undefined) throw new Error('Unexpected selection');
     }
     return { range, selectedIds };

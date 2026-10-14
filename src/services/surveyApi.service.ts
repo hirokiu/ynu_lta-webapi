@@ -1,7 +1,9 @@
 import { Request, Response, response } from "express";
 import { MongooseDocument, Mongoose, Error } from "mongoose";
 import { Model, Document, DocumentQuery } from "mongoose";
-const converter = require('json-2-csv');
+import { combinedAnswerCursor, surveyAnswerPage } from '../utils/surveyAnswers';
+import { currentProject } from '../projects/settings';
+import { exportFile } from '../utils/exportFile';
 
 var moment = require('moment-timezone');
 
@@ -19,7 +21,8 @@ import {
 
 import admin from "./firebaseAdmin.service";
 import { pageOptions, literalSearch, dateRange, exportOptions } from "../utils/query";
-import { resolveIdentity } from "../utils/identity";
+import { resolveAccountIdentity } from "../accounts/identity";
+import { Account, accountsEnabled, accountScope } from "../accounts/models";
 import Rand, { PRNG } from 'rand-seed';
 
 export const getAuthToken = (req: Request, res: Response, callback: (ah: any) => void) => {
@@ -36,7 +39,7 @@ export const checkIfAuthenticatedAdmin = (req: Request, res: Response, callback:
                 .auth()
                 .verifyIdToken(ah, process.env.AUTH_MODE === "uid");
 
-            const identity = resolveIdentity(userInfo);
+            const identity = await resolveAccountIdentity(userInfo);
             const verifiedUserId = identity.userId;
 
             if (!identity.isAdmin) {
@@ -60,7 +63,7 @@ export const checkIfAuthenticatedUserIdOrAdmin = (userId: String, req: Request, 
                 .auth()
                 .verifyIdToken(ah, process.env.AUTH_MODE === "uid");
 
-            const identity = resolveIdentity(userInfo);
+            const identity = await resolveAccountIdentity(userInfo);
             const verifiedUserId = identity.userId;
 
             if (verifiedUserId != userId && !identity.isAdmin) {
@@ -83,7 +86,7 @@ export const getAuthenticatedUserId = (req: Request, res: Response, callback: (u
                 .auth()
                 .verifyIdToken(ah, process.env.AUTH_MODE === "uid");
 
-            const identity = resolveIdentity(userInfo);
+            const identity = await resolveAccountIdentity(userInfo);
             const verifiedUserId = identity.userId;
 
             return callback(verifiedUserId);
@@ -93,6 +96,15 @@ export const getAuthenticatedUserId = (req: Request, res: Response, callback: (u
         }
     });
 };
+
+// Only attach public login names to administrator-facing user responses.
+async function usersWithNames(users: any[]) {
+    const accounts: any[] = accountsEnabled() && users.length ? await Account.find({
+        scope: accountScope(), userId: {$in: users.map(user => user.userId)}
+    }).select('userId username').lean().exec() : [];
+    const names = new Map(accounts.map(account => [account.userId, account.username]));
+    return users.map(user => ({...user, username: names.get(user.userId) || (/^u_[a-f0-9]{32}$/.test(user.userId) ? null : user.userId)}));
+}
 
 export class SurveyService {
 
@@ -125,17 +137,9 @@ export class SurveyService {
     public getAllUsers(req: Request, res: Response) {
 
         SurveyService.dbgReq(req);
-        checkIfAuthenticatedAdmin(req, res, (uid: string) => {
-            SurveyService.dbgMsg("greetings admin " + uid + "!");
-
-            User.find({}, (error: Error, user: MongooseDocument) => {
-                if (error) {
-                    res.send(error);
-                } else {
-                    res.json(user);
-                }
-            }).sort('-createdAt');
-
+        checkIfAuthenticatedAdmin(req, res, async () => {
+            try { res.json(await usersWithNames(await User.find({}).sort('-createdAt').lean().exec())); }
+            catch (_) { res.status(503).json({error: 'ユーザー一覧を取得できませんでした。'}); }
         });
     }
 
@@ -166,18 +170,11 @@ export class SurveyService {
 
     public getUserById(req: Request, res: Response) {
         SurveyService.dbgReq(req);
-        checkIfAuthenticatedAdmin(req, res, (uid: string) => {
-            SurveyService.dbgMsg("greetings admin " + uid + "!");
-
-            SurveyService.dbgReq(req);
-            User.findOne({ userId: req.params.id }, (error: Error, user: MongooseDocument) => {
-                if (error) {
-                    res.send(error);
-                } else {
-                    res.json(user);
-                }
-            })
-
+        checkIfAuthenticatedAdmin(req, res, async () => {
+            try {
+                const user = await User.findOne({userId: req.params.id}).lean().exec();
+                res.json(user ? (await usersWithNames([user]))[0] : null);
+            } catch (_) { res.status(503).json({error: 'ユーザーを取得できませんでした。'}); }
         });
     }
 
@@ -211,18 +208,15 @@ export class SurveyService {
     /* Group */
 
     public getAllGroups(req: Request, res: Response) {
-
-        SurveyService.dbgReq(req);
-        checkIfAuthenticatedAdmin(req, res, (uid: string) => {
-            SurveyService.dbgMsg("greetings admin " + uid + "!");
-
-            Group.find({}, (error: Error, group: MongooseDocument) => {
-                if (error) {
-                    res.send(error);
-                } else {
-                    res.json(group);
-                }
-            }).sort('-createdAt');
+        checkIfAuthenticatedAdmin(req, res, async () => {
+            let search: RegExp | undefined;
+            try { search = literalSearch(req.query.t); }
+            catch (_) { res.status(400).json({error: 'Invalid group search'}); return; }
+            try {
+                const groups = await Group.find(search ? {groupId: search} : {})
+                    .sort({createdAt: -1, _id: -1}).lean().maxTimeMS(15000).exec();
+                res.json(groups);
+            } catch (_) { res.status(500).json({error: 'Could not load groups'}); }
         });
     }
 
@@ -362,12 +356,23 @@ export class SurveyService {
                     const clauses: any[] = [];
                     if (range) clauses.push({ $or: [{ publishAt: range }, { publishFrom: { $lte: range.$lte }, publishTo: { $gte: range.$gte } }] });
                     if (search) clauses.push({ $or: [{ "survey.name": search }, { userId: search }, { groupId: search }] });
+                    for (const [parameter, field] of [['surveyName', 'survey.name'], ['userId', 'userId'], ['groupId', 'groupId']]) {
+                        const value = literalSearch(req.query[parameter]);
+                        if (value) clauses.push({[field]: value});
+                    }
+                    for (const [parameter, field] of [['opened', 'firstOpenedAt'], ['notified', 'publishNotifiedAt']]) {
+                        const value = req.query[parameter];
+                        if (value !== undefined && value !== '') {
+                            if (!['yes', 'no'].includes(String(value)) || typeof value !== 'string') throw new global.Error('Invalid status');
+                            clauses.push({[field]: value === 'yes' ? {$ne: null} : null});
+                        }
+                    }
                     if (req.query.surveyId) {
                         if (!/^[a-f0-9]{24}$/i.test(String(req.query.surveyId))) throw new global.Error("Invalid survey ID");
                         clauses.push({ "survey._id": req.query.surveyId });
                     }
                     if (clauses.length) filter = { $and: clauses };
-                } else if (search) filter.name = search;
+                } else if (search) filter.$or = [{name: search}, {title: search}];
             } catch (error) { res.status(400).json({ error: "Invalid filters" }); return; }
             try {
                 const model: any = kind === "assignments" ? Assignment : Survey;
@@ -375,8 +380,9 @@ export class SurveyService {
                     .select(kind === "assignments" ? "userId groupId publishAt expireAt publishFrom publishTo publishNotifiedAt expireNotifiedAt firstOpenedAt lastOpenedAt createdAt survey._id survey.name survey.title survey.questions._id dataset.createdAt" : "name title createdAt questions._id")
                     .sort(kind === "assignments" ? { publishAt: -1, _id: -1 } : { createdAt: -1, _id: -1 })
                     .skip(paging.skip).limit(paging.limit + 1).lean().maxTimeMS(15000).exec();
+                const total = await model.countDocuments(filter).maxTimeMS(15000).exec();
                 const hasMore = items.length > paging.limit;
-                res.json({ items: items.slice(0, paging.limit), page: paging.page, limit: paging.limit, hasMore });
+                res.json({ items: items.slice(0, paging.limit), page: paging.page, limit: paging.limit, hasMore, total });
             } catch (error) { res.status(500).json({ error: "Could not load page" }); }
         });
     }
@@ -429,17 +435,15 @@ export class SurveyService {
 
     public findUserByUserId(req: Request, res: Response) {
         SurveyService.dbgReq(req);
-        checkIfAuthenticatedAdmin(req, res, (uid: string) => {
-            SurveyService.dbgMsg("greetings admin " + uid + "!");
-
-            User.find({ "userId": { "$regex": req.query.t, "$options": "i" } }, (error: Error, users: MongooseDocument) => {
-                if (error) {
-                    res.send(error);
-                } else {
-                    res.json(users);
-                }
-            }).sort('-createdAt');
-
+        checkIfAuthenticatedAdmin(req, res, async () => {
+            let search: RegExp | undefined;
+            try { search = literalSearch(req.query.t); }
+            catch (_) { return res.status(400).json({error: '検索文字列を確認してください。'}); }
+            try {
+                const accounts: any[] = search && accountsEnabled() ? await Account.find({scope: accountScope(), username: search}).select('userId').lean().exec() : [];
+                const filter = search ? {$or: [{userId: search}, {userId: {$in: accounts.map(account => account.userId)}}]} : {};
+                res.json(await usersWithNames(await User.find(filter).sort('-createdAt').lean().exec()));
+            } catch (_) { res.status(503).json({error: 'ユーザーを検索できませんでした。'}); }
         });
     }
 
@@ -525,76 +529,30 @@ export class SurveyService {
     /* dataset */
 
     public addNewDataset(req: Request, res: Response) {
-        SurveyService.dbgReq(req);
-
-        // TODO: should auth the uid of the assignment, not the URL proclaimed uid, to be able to get assignment from aid only, not needing user
-
-        checkIfAuthenticatedUserIdOrAdmin(req.params.uid, req, res, (uid: string) => {
-            SurveyService.dbgMsg("zup " + uid + "!");
-
-            const condition = { "_id": req.params.aid };
-            const updateClause = { $set: { dataset: req.body } };
-
-            // TODO: rewrite for AR, don't post directly on group assignment!
-            // Assignment.findOneAndUpdate(condition, updateClause, (error: Error) => {
-            //     if (error) { res.send(error); }
-            //     else {
-            //         Assignment.findOne(condition, (error: Error, assignment: MongooseDocument) => {
-            //             if (error) {
-            //                 res.send(error);
-            //             } else {
-            //                 if (assignment) {
-            //                     res.json(assignment);
-            //                 } else {
-            //                     res.status(404).send("Assignment not found.");
-            //                 }
-            //             }
-            //         });
-            //     }
-            // });
-
-            // TODO: delete above when below rewrite works
-
-            Assignment.findOne(condition, (error: Error, assignment: MongooseDocument) => {
-                if (error) { res.send(error); } else {
-                    if (assignment) {
-                        const groupId = assignment.get("groupId");
-                        if (groupId) {
-
-                            AssignmentResults.findOneAndUpdate(
-                                { assignment: req.params.aid, userId: uid}, updateClause,
-                                (error: Error) => {
-                                    if (error) { console.log(error); }
-                                    else {
-                                        res.status(201).send("the Dataset has been stored.")
-                                    }
-                                })
-
-
-
-                        } else {
-                            Assignment.findOneAndUpdate(condition, updateClause, (error: Error) => {
-                                if (error) { res.send(error); }
-                                else {
-                                    Assignment.findOne(condition, (error: Error, assignment: MongooseDocument) => {
-                                        if (error) {
-                                            res.send(error);
-                                        } else {
-                                            if (assignment) {
-                                                res.json(assignment);
-                                            } else {
-                                                res.status(404).send("Assignment not found.");
-                                            }
-                                        }
-                                    });
-                                }
-                            });
-                        }
-                    } else {
-                        res.status(404).send("Assignment not found.");
-                    }
+        checkIfAuthenticatedUserIdOrAdmin(req.params.uid, req, res, async () => {
+            const targetUserId = req.params.uid;
+            if (!/^[a-f0-9]{24}$/i.test(req.params.aid) || !req.body || !Array.isArray(req.body.answers)) {
+                res.status(400).json({error: 'Invalid answer submission'}); return;
+            }
+            try {
+                const assignment: any = await Assignment.findById(req.params.aid).select('userId groupId').lean().exec();
+                if (!assignment) { res.sendStatus(404); return; }
+                const update = {$set: {dataset: {answers: req.body.answers}}};
+                if (assignment.groupId) {
+                    const member = await Group.exists({groupId: assignment.groupId, userIds: targetUserId});
+                    if (!member) { res.sendStatus(403); return; }
+                    const result = await AssignmentResults.findOneAndUpdate(
+                        {assignment: assignment._id, userId: targetUserId}, update, {new: true}).exec();
+                    if (!result) { res.status(404).json({error: 'Assignment recipient was not prepared'}); return; }
+                    res.status(201).send('the Dataset has been stored.');
+                } else {
+                    if (assignment.userId !== targetUserId) { res.sendStatus(403); return; }
+                    const result = await Assignment.findOneAndUpdate(
+                        {_id: assignment._id, userId: targetUserId}, update, {new: true}).exec();
+                    if (!result) { res.sendStatus(404); return; }
+                    res.json(result);
                 }
-            });
+            } catch (_) { res.status(500).json({error: 'Could not save answers'}); }
         });
     }
 
@@ -681,7 +639,7 @@ export class SurveyService {
             SurveyService.dbgMsg("publishAtMoment:    date  " + publishAtMoment.toDate());
             SurveyService.dbgMsg("publishAtMoment UTC date: " + publishAtMoment.utc().toDate());
 
-            this.saveNewAssignment(sid, uid, publishAtDate, expireAtDate.format, (code, body) => { res.status(code).send(body); });
+            this.saveNewAssignment(sid, uid, publishAtDate, expireAtDate, (code, body) => { res.status(code).send(body); });
         });
     }
 
@@ -753,7 +711,7 @@ export class SurveyService {
 
     public createGroupAssignmentSeries(reqJustForAuth: Request, sid: string, gid: string, startYMD: string, endYMD: string, hours: Array<string>, plusMinusRandomMinutes: number, res: Response) {
         SurveyService.dbgReq(reqJustForAuth);
-        checkIfAuthenticatedAdmin(reqJustForAuth, res, (uidJustForAuth: string) => {
+        checkIfAuthenticatedAdmin(reqJustForAuth, res, async (uidJustForAuth: string) => {
             SurveyService.dbgMsg("greetings admin " + uidJustForAuth + "!");
 
             SurveyService.dbgMsg("createGroupAssignmentSeries: sid: " + sid + ", gid: " + gid + ", dates: " + startYMD + " - " + endYMD + " at " + hours.toString() + " plus minus " + plusMinusRandomMinutes + ".");
@@ -765,13 +723,15 @@ export class SurveyService {
                 res.status(400).send(eMsg);
             }
 
+            let timezone: string;
+            try { timezone = (await currentProject()).timezone; } catch (_) { res.status(503).send('Could not load project timezone'); return; }
             var daysInSchedule: number = 0;
-            for (var m = moment(startYMD); m.diff(moment(endYMD), 'days') <= 0; m.add(1, 'days')) {
+            for (var m = moment.tz(startYMD, timezone); m.diff(moment.tz(endYMD, timezone), 'days') <= 0; m.add(1, 'days')) {
                 daysInSchedule++;
                 SurveyService.dbgMsg("Scheduling for date " + m.format('YYYY-MM-DD'));
                 for (var i = 0; i < hours.length; i = i + 1) {
                     var h = hours[i];
-                    var publishAtMoment = moment.tz(m.format('YYYY-MM-DD') + " " + h, "Asia/Tokyo"); //TODO: now assuming admin is in sthlm
+                    var publishAtMoment = moment.tz(m.format('YYYY-MM-DD') + " " + h, timezone);
                     SurveyService.dbgMsg("publishAtMoment is " + publishAtMoment);
 
 
@@ -1259,7 +1219,7 @@ export class SurveyService {
 */
 
 
-private static getDatasetsOfAssignments(assignments: any) {
+private static getDatasetsOfAssignments(assignments: any, timezone = 'Asia/Tokyo') {
     let flattened = new Array();
     let allKeys = new Set<string>();
 
@@ -1275,9 +1235,7 @@ private static getDatasetsOfAssignments(assignments: any) {
         //if (a.date || a.createdAt) {
         if (a.lastOpenedAt || a.updatedAt) {
             //const date = new Date(a.date || a.updatedAt);
-            const date = new Date(a.lastOpenedAt || a.updatedAt);
-            date.setHours(date.getHours() + 9);
-            flatA['回答時刻'] = date.toISOString().replace('T', ' ').substring(0, 19);
+            flatA['回答時刻'] = moment(a.lastOpenedAt || a.updatedAt).tz(timezone).format('YYYY-MM-DD HH:mm:ss Z');
         }
         flatA['回答設問数'] = a.dataset.answers.length;
 
@@ -1354,45 +1312,20 @@ private static getDatasetsOfAssignments(assignments: any) {
 
 
     public getAllDatasetsOfSurvey(req: Request, res: Response) {
-        SurveyService.dbgReq(req);
-        checkIfAuthenticatedAdmin(req, res, (uid: string) => {
-            SurveyService.dbgMsg("greetings admin " + uid + "!");
-
-            const surveyId = req.params.sid as String;
-
-            Assignment.find({ "survey._id": surveyId }, (error: Error, assignments: any) => {
-                if (error) {
-                    res.send(error);
-                } else {
-                    res.json(SurveyService.getDatasetsOfAssignments(assignments));
-                }
-            }).sort('-publishedAt');
-        });
+        SurveyService.legacyExport(req, res, 'json');
     }
-
     public getAllDatasetsOfSurveyCSV(req: Request, res: Response) {
-        SurveyService.dbgReq(req);
-        checkIfAuthenticatedAdmin(req, res, (uid: string) => {
-            SurveyService.dbgMsg("greetings admin " + uid + "!");
-            const surveyId = req.params.sid as String;
-
-            Assignment.find({ "survey._id": surveyId }, (error: Error, assignments: any) => {
-
-                if (error) {
-                    res.send(error);
-                } else {
-                    SurveyService.dbgMsg("found " + assignments.length + " assignments of survey " + surveyId);
-                    converter.json2csv(SurveyService.getDatasetsOfAssignments(assignments), (error: Error, csv: string) => {
-                        if (error) {
-                            res.send(error);
-                        } else {
-
-                            res.send(csv);
-                        }
-                    }, { "unwindArrays": true }
-                    );
-            }
-            }).sort('-publishedAt');
+        SurveyService.legacyExport(req, res, 'csv');
+    }
+    private static legacyExport(req: Request, res: Response, format: string) {
+        checkIfAuthenticatedAdmin(req, res, async () => {
+            if (!/^[a-f0-9]{24}$/i.test(req.params.sid)) { res.status(400).json({error: 'Invalid survey'}); return; }
+            let timezone: string;
+            try { timezone = (await currentProject()).timezone; } catch (_) { res.status(503).json({error: 'Could not load project timezone'}); return; }
+            res.setHeader('X-Export-Timezone', timezone);
+            await exportFile(res, async () => Assignment.find({"survey._id": req.params.sid})
+                .select('userId user dataset lastOpenedAt updatedAt').sort('-publishedAt')
+                .lean().maxTimeMS(60000).cursor({batchSize: 1}), format, records => SurveyService.getDatasetsOfAssignments(records, timezone));
         });
     }
 
@@ -1404,13 +1337,8 @@ private static getDatasetsOfAssignments(assignments: any) {
                 if (!/^[a-f0-9]{24}$/i.test(req.params.sid)) throw new global.Error("Invalid survey");
             } catch (error) { res.status(400).json({ error: "Invalid filters" }); return; }
             try {
-                const ids = await Assignment.find({ "survey._id": req.params.sid }).select("_id").lean().exec();
-                const records: any[] = await AssignmentResults.find({ assignment: { $in: ids.map((a: any) => a._id) }, "dataset.answers.0": { $exists: true } })
-                    .select("userId lastOpenedAt updatedAt dataset.answers.index")
-                    .sort({ updatedAt: -1, _id: -1 }).skip(paging.skip).limit(paging.limit + 1).lean().maxTimeMS(15000).exec();
-                res.json({ page: paging.page, limit: paging.limit, hasMore: records.length > paging.limit,
-                    items: records.slice(0, paging.limit).map(record => ({ _id: record._id, userId: record.userId,
-                        answeredAt: record.lastOpenedAt || record.updatedAt, answerCount: record.dataset.answers.length })) });
+                const result = await surveyAnswerPage(req.params.sid, paging.skip, paging.limit);
+                res.json({page: paging.page, limit: paging.limit, hasMore: paging.skip + result.items.length < result.total, ...result});
             } catch (error) { res.status(500).json({ error: "Could not load answers" }); }
         });
     }
@@ -1423,176 +1351,66 @@ private static getDatasetsOfAssignments(assignments: any) {
                 const options = exportOptions(req.method === 'POST' ? req.body : req.query, req.method === 'POST');
                 range = options.range; selectedIds = options.selectedIds;
             } catch (error) { res.status(400).json({ error: "Invalid export options" }); return; }
-            try {
-                // Only IDs are needed for the join; never load embedded questionnaires here.
-                const ids = await Assignment.find({ "survey._id": req.params.sid }).select("_id").lean().exec();
-                const filter: any = { assignment: { $in: ids.map((a: any) => a._id) }, "dataset.answers.0": { $exists: true } };
-                if (selectedIds) filter._id = { $in: selectedIds };
-                // Same timestamp precedence as the production CSV formatter.
-                if (range) filter.$or = [{ lastOpenedAt: range }, { lastOpenedAt: null, updatedAt: range }];
-                const results = await AssignmentResults.find(filter)
-                    .select("userId user dataset lastOpenedAt updatedAt").limit(10001).lean().maxTimeMS(60000).exec();
-                if (selectedIds && results.length !== selectedIds.length) { res.status(422).json({ error: "Selected answers are no longer available in this Survey" }); return; }
-                if (results.length > 10000) { res.status(413).json({ error: "More than 10000 results; select a shorter date range" }); return; }
-                const rows = SurveyService.getDatasetsOfAssignments(results);
-                if (format !== "csv") { res.json(rows); return; }
-                if (!rows.length) { res.type("text/csv").send(""); return; }
-                converter.json2csv(rows, (error: any, csv: string) => {
-                    if (error) { res.status(500).json({ error: "Could not generate export" }); return; }
-                    res.type("text/csv").send(csv);
-                }, { unwindArrays: true });
-            } catch (error) { console.error("Export failed", error instanceof global.Error ? error.message : "Unknown error"); res.status(500).json({ error: "Could not load export" }); }
+            let timezone: string;
+            try { timezone = (await currentProject()).timezone; } catch (_) { res.status(503).json({error: 'Could not load project timezone'}); return; }
+            res.setHeader('X-Export-Timezone', timezone);
+            await exportFile(res, () => combinedAnswerCursor(req.params.sid, range, selectedIds),
+                String(format), records => SurveyService.getDatasetsOfAssignments(records, timezone), selectedIds && selectedIds.length);
         });
     }
 
-    public FindRegistrationTokensForNotification(
-        messageCallback:
-            (
-                deviceRegistrationToken: string,
-                title: String,
-                body: String
-            ) => void
-    ) {
-        var from = moment().utc().add(-NOTIFY_PUBLISH_SINCE_MINUTES, "m");
-        var to = moment().utc();
+    private notificationPassRunning = false;
 
-        AssignmentResults.find({
-            publishAt: {
-                $gte: from,
-                $lte: to
-            },
-            publishNotifiedAt: { $exists: false }
-        }, (error: Error, assignmentResults: any) => {
-            if (error) {
-                console.log(error);
-            } else {
-                if (assignmentResults.length == 0) {
-                    SurveyService.dbgMsg("None AssignmentResults to publish found. ");
+    public async FindRegistrationTokensForNotification(
+        messageCallback: (token: string, title: string, body: string, data: {[key: string]: string}) => Promise<boolean>
+    ): Promise<void> {
+        // Avoid overlapping timer passes within the single API process.
+        if (this.notificationPassRunning) return;
+        this.notificationPassRunning = true;
+        try {
+            const now = moment().utc();
+            for (const expiring of [false, true]) {
+                const dateField = expiring ? 'expireAt' : 'publishAt';
+                const marker = expiring ? 'expireNotifiedAt' : 'publishNotifiedAt';
+                const condition: any = {
+                    [dateField]: expiring
+                        ? {$gte: now.toDate(), $lte: now.clone().add(NOTIFY_EXPIRE_IN_MINUTES, 'm').toDate()}
+                        : {$gte: now.clone().subtract(NOTIFY_PUBLISH_SINCE_MINUTES, 'm').toDate(), $lte: now.toDate()},
+                    [marker]: {$exists: false}
+                };
+                if (expiring) condition.dataset = {$exists: false};
+                for (const grouped of [false, true]) {
+                    const model: any = grouped ? AssignmentResults : Assignment;
+                    const filter = grouped ? condition : {...condition, groupId: {$in: [null, '']}};
+                    let query = model.find(filter).sort('_id');
+                    if (grouped) query = query.populate('assignment');
+                    const cursor = query.lean().cursor({batchSize: 1});
+                    try {
+                        for (let record = await cursor.next(); record; record = await cursor.next()) {
+                            const assignment = grouped ? record.assignment : record;
+                            if (!assignment || !assignment.survey || !record.userId) continue;
+                            const user: any = await User.findOne({userId: record.userId}).select('deviceToken').lean().exec();
+                            if (!user || !user.deviceToken) continue;
+                            const survey = assignment.survey;
+                            let accepted = false;
+                            try {
+                                accepted = await messageCallback(user.deviceToken,
+                                    expiring ? survey.expireNotificationTitle : survey.publishNotificationTitle,
+                                    expiring ? survey.expireNotificationBody : survey.publishNotificationBody,
+                                    {kirokunAssignmentId: String(assignment._id), kirokunUserId: String(record.userId),
+                                     kirokunEnvironment: process.env.ACCOUNT_SCOPE || 'proto'});
+                            } catch (_) { /* Leave unmarked for a later timer pass. */ }
+                            if (accepted) {
+                                await model.updateOne({_id: record._id, [marker]: {$exists: false}},
+                                    {$set: {[marker]: new Date()}}).exec();
+                            }
+                        }
+                    } finally { await cursor.close(); }
                 }
-
-                assignmentResults.forEach((ar: any) => {
-
-                    SurveyService.dbgMsg("Found ar:")
-                    
-                    var assignmentId: string = ar.assignment._id;
-                    var title: string = ar.assignment.survey.publishNotificationTitle;
-                    var body: string = ar.assignment.survey.publishNotificationBody;
-
-                    this.getDeviceRegistrationTokenFromUserId(ar.userId, (registrationToken) => {
-                        SurveyService.dbgMsg(`Found ${assignmentId} for ${ar.userId} with devregtoken ${registrationToken}`);
-                        messageCallback(registrationToken, title, body);
-                        this.setAssignmentResult(ar._id, { $set: { publishNotifiedAt: new Date() } }); // TO DO can this be set directly on AR without a new query
-                    });
-                });
             }
-
-        }).populate('assignment')
-
-        SurveyService.dbgMsg(`Checking for publishAt within ${from} and ${to} but not yet notified. `);
-
-        Assignment.find({
-            publishAt: {
-                $gte: from,
-                $lte: to
-            },
-            publishNotifiedAt: { $exists: false }
-        }, (error: Error, assignments: any) => {
-            if (error) {
-                console.log(error);
-            } else {
-
-                if (assignments.length == 0) {
-                    SurveyService.dbgMsg("None Published found. ");
-                }
-
-                assignments.forEach((a: any) => {
-
-                    var assignmentId: string = a._id;
-                    var title: string = a.survey.publishNotificationTitle;
-                    var body: string = a.survey.publishNotificationBody;
-
-                    SurveyService.dbgMsg("publishNotificationTitle: " + title);
-
-                    this.getDeviceRegistrationTokenFromUserId(a.userId, (registrationToken) => {
-                        SurveyService.dbgMsg(`Found Published ${registrationToken} : ${assignmentId}`);
-                        SurveyService.dbgMsg("publishNotificationTitle: " + title);
-                        messageCallback(registrationToken, title, body);
-                        this.setAssignment(assignmentId, { $set: { publishNotifiedAt: new Date() } });
-                    });
-                });
-            }
-
-        }).sort('-createdAt');
-
-        var from = moment().utc();
-        var to = moment().utc().add(NOTIFY_EXPIRE_IN_MINUTES, "m");;
-
-        SurveyService.dbgMsg(`Checking for Expiring within ${from} and ${to} but not yet notified. `);
-
-        Assignment.find({
-            expireAt: {
-                $gte: from,
-                $lte: to
-            },
-            expireNotifiedAt: { $exists: false },
-            dataset: { $exists: false }
-        }, (error: Error, assignments: any) => {
-            if (error) {
-                console.log(error);
-            } else {
-
-                if (assignments.length == 0) {
-                    SurveyService.dbgMsg("None expiring found. ");
-                }
-
-                assignments.forEach((a: any) => {
-
-                    var assignmentId: string = a._id;
-                    var title: string = a.survey.expireNotificationTitle;
-                    var body: string = a.survey.expireNotificationBody;
-
-                    this.getDeviceRegistrationTokenFromUserId(a.userId, (registrationToken) => {
-                        SurveyService.dbgMsg(`Found expiring ${registrationToken} : ${assignmentId}`);
-                        messageCallback(registrationToken, title, body);
-                        this.setAssignment(assignmentId, { $set: { expireNotifiedAt: new Date() } });
-                    });
-                });
-            }
-        }).sort('-createdAt');
-
-        AssignmentResults.find({
-            expireAt: {
-                $gte: from,
-                $lte: to
-            },
-            expireNotifiedAt: { $exists: false },
-            dataset: { $exists: false }
-        }, (error: Error, assignmentResults: any) => {
-            if (error) {
-                console.log(error);
-            } else {
-                if (assignmentResults.length == 0) {
-                    SurveyService.dbgMsg("None AssignmentResults to publish found. ");
-                }
-
-                assignmentResults.forEach((ar: any) => {
-
-                    SurveyService.dbgMsg("Found ar:")
-                    
-                    var assignmentId: string = ar.assignment._id;
-                    var title: string = ar.assignment.survey.expireNotificationTitle;
-                    var body: string = ar.assignment.survey.expireNotificationBody;
-
-                    this.getDeviceRegistrationTokenFromUserId(ar.userId, (registrationToken) => {
-                        SurveyService.dbgMsg(`Found ${assignmentId} for ${ar.userId} with devregtoken ${registrationToken}`);
-                        SurveyService.dbgMsg("expireNotificationTitle: " + title);
-                        messageCallback(registrationToken, title, body);
-                        this.setAssignmentResult(ar._id, { $set: { expireNotifiedAt: new Date() } }); // TO DO can this be set directly on AR without a new query
-                    });
-                });
-            }
-
-        }).populate('assignment')
+        } catch (_) {
+            console.error('Notification pass failed; unfinished records remain pending.');
+        } finally { this.notificationPassRunning = false; }
     }
 
     public CreateImpendingResultObjects(
