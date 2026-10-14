@@ -29,3 +29,29 @@ Dev稼働checkout dbcd660を基準にfix/dev-refactoring-finishを作成。Proto
 5. Dev Firebaseのみを使った環境間トークン拒否試験、管理UI起点の合成Survey作成→通常配信→実機回答→ブラウザーCSV/JSON比較。
 
 現時点ではコード候補と限定自動試験まで。Devへの配備、通常通知、管理UI起点一貫試験、実機再試験は未完了。Proto・旧サーバー・DNS・既存認証・既存研究データを変更していない。
+
+## 2026-10-14 追記：Dev配備と管理画面確認
+
+上記の未完了項目のうち、以下を今回更新した。
+
+- Dev管理画面のGoogleログインとUsers表示を確認。
+- 実HTTP＋隔離MongoDBの統合試験成功。個人/グループの公開前・期限後・期限欠落拒否、他人の対象へのアクセス拒否、同時送信1件のみ保存、再送で上書きしないことを確認。Firebase認証部分はモックであり、実環境間トークン試験の代替ではない。
+- 両回答保存形式を含むHTTP出力試験成功。全件JSON/CSV各2件、選択JSON1件、一覧1ページ1件でも総数2件を確認。ブラウザー出力とは区別する。
+- 通常通知処理の隔離MongoDB試験成功。送信失敗後の再試行、重複実行防止、対象者制限を確認。FCMは模擬送信。
+- Devバックアップ: survey-20261014T054830Z-1508636.archive.gz。取得・gzip検査・SHA256作成成功。今回のバックアップからの復元試験は未実施。
+- 配備: 2026-10-14T05:49:48Z、APIコード be59f34（実装は1572c52時点と同一、後続差分はテストのみ）。Web submodule 943803d、既存Webコンテナー維持。
+- サーバー実行API image: sha256:1a2d344fe494b6076ae1eb65119600e8b35e96e09fe3ccb471bdb02295085ee3。
+- Mac image表示ID: sha256:fb85e3090b51c9b912bf35e6f25f319a78d1df0f7b225cc681e88a158f6654a9。保存/読み込み後の表示IDは異なるがRootFS層一覧SHA256は双方 bfed0c5ea957e4dd1eb1aac3797779b234edba6b7c5d7b146d5be2e4860cf728 で一致。
+- Dev内部/公開API health ready=true。公開ルート404は維持。管理画面はSSHトンネル localhost:18082。
+- NOTIFICATIONS_ENABLED=false、ASSIGNMENT_PREPARATION_ENABLED=falseを維持。実通知は送っていない。
+- Proto API image sha256:8fa56480af99cc37c49822fbdb83b547ff73420329ff7fb55ca4d5b29d272ee9 は配備前後不変。
+- 管理画面から合成Survey「DEV A2 管理画面一貫確認 20261014」を新規保存し、詳細画面で3要素（開始/入力/終了）を確認。既存研究データ変更なし。
+- 単発予約のボタン操作時にブラウザー応答停止。予約データがないことを読み取り確認。成功と扱わず再検証する。通知/回答/ブラウザーCSV・JSONの一貫試験は未完了。
+
+### 切戻し
+
+接続先uva.alchembright.com、~/kirokun-devのみ。ops/state/dev-finish-rollback/env と commit と api-image を保存済み。必要時はDev .envを保存版へ復帰し、dbcd660へ戻し、Dev APIだけを再作成する。旧APIイメージは保持。今回DBスキーマ変更なし、既存DBの復元・上書きは行わない。Proto操作不要。
+
+### 次回
+
+ブラウザー単発予約の検証を再開。公開時刻・期限のDB/API/UI照合、実Firebase環境分離試験を行う。実機はユーザー都合により後日。実機準備が整ってから検証対象者に限って通常通知を有効化し、管理UI起点の全工程とブラウザー出力を確認する。A2完了・Proto承認待ちとはまだ扱わない。
