@@ -236,3 +236,11 @@ Devホスト（または検証localhost）に限定した登録ガードと、/m
 - Android c24e2c6（fix/dev-push-registration）: 表示名保持、期限切れ案内、Dev通知登録/起動遷移修正を固定。testDevDebugUnitTest/assembleDevDebug成功。現時点で最新Proto正式署名APK/AABは未生成。
 - API側のグループ再送ツールと複数対象者試験・記録も候補ソースとして固定する。稼働Dev APIは2006d9b相当イメージのまま。今回モバイル端末更新・ストアアップロード・Proto配備なし。
 - 次の必須検証: 共通化したiOS送信経路の成功/期限切れ/通信失敗/二重タップを隔離した接続先で確認してから上松限定の署名済候補を作る。既存Protoに試験回答を書き込む操作は未承認なので実行しない。複数実認証グループとブラウザー出力照合は残る。版固定は「ソース固定」と「配布成果物固定」を区別する。
+
+## 2026-10-15 共通送信実機・実認証グループ・署名候補
+- iOS 1f189dfの共通送信処理をDevDebugでiPhone11Proへ導入。本人が予約6ad0c97aa0b3de4a85d4f651を正常送信しDB保存/期限内を確認。別予約6ad0c9ce0846e54560aeac45で確認画面待機後にサーバー期限を短縮、本人が日本語の期限切れ/未送信案内を確認。DB expired=true/datasetなし。正常回答は保持。通信失敗/二重タップ実機、署名済Proto候補そのものの実機回帰は未実施。
+- 実Firebase合成2アカウントで同一グループの一覧→本人回答201→再送409→各対象者のDB値を確認。Survey6ad0c930bbcdb70d46918557/Assignment6ad0c930bbcdb70d4691855b。グループと予約は合成データをDB作成したため管理画面でのグループ作成試験ではない。通知停止維持。
+- このSurveyのブラウザーJSON/CSV作成中表示→保存を実施。Downloads/qa-real-group-1792067888765_results.{json,csv}を照合し各2件、別対象者、全項目一致・合成回答一致。実機2人への通知を含む全工程の代替ではない。
+- iOS署名Archive/export成功: version2.0.0/build2026101501、source1f189df。codesign verify成功。IPA SHA256 ef66e8cde84840f0d5c73d910190765555fa0a3bdd5e5ab712e6ab6446d96b83。
+- Android versionCode8を40817d2で固定、既存正式鍵でprepareProtoDistribution成功。APK署名証明書一致・Proto package・non-debuggable検査成功、AAB jarsigner verify成功。APK SHA256 3bc21677f5cf65e6136f5f304bb80a639bd61f6ae59849c1dc9763f16f9f0d35、AAB dbc66817374b2d1976a103481831d8b17f10e8ff6dc1a0f67456100adff0e788。
+- 成果物: consolidation/mobile-migration/releases/{ios,android}/20261015-dev-finish、対応表releases/candidate-20261015.json。ローカル署名済み候補の固定であり、配布承認/正式公開ではない。Protoサーバー操作・ストアアップロード・候補の利用者配信なし。
