@@ -17,7 +17,7 @@ export class CloudMessageService {
             return true;
         } catch (_) {
             // Tokens and provider error messages may contain sensitive values.
-            console.error("Notification submission failed; left pending for retry.");
+            console.error("Notification submission failed; claimed delivery requires review.");
             return false;
         }
     }

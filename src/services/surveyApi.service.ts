@@ -1379,11 +1379,14 @@ private static getDatasetsOfAssignments(assignments: any, timezone = 'Asia/Tokyo
             for (const expiring of [false, true]) {
                 const dateField = expiring ? 'expireAt' : 'publishAt';
                 const marker = expiring ? 'expireNotifiedAt' : 'publishNotifiedAt';
+                const started = expiring ? 'expireNotificationStartedAt' : 'publishNotificationStartedAt';
+                const state = expiring ? 'expireNotificationState' : 'publishNotificationState';
                 const condition: any = {
                     [dateField]: expiring
                         ? {$gte: now.toDate(), $lte: now.clone().add(NOTIFY_EXPIRE_IN_MINUTES, 'm').toDate()}
                         : {$gte: now.clone().subtract(NOTIFY_PUBLISH_SINCE_MINUTES, 'm').toDate(), $lte: now.toDate()},
-                    [marker]: {$exists: false}
+                    [marker]: {$exists: false},
+                    [started]: {$exists: false}
                 };
                 if (process.env.ACCOUNT_SCOPE === 'dev') condition.userId = {$in: devUsers};
                 if (expiring) condition.dataset = {$exists: false};
@@ -1399,6 +1402,12 @@ private static getDatasetsOfAssignments(assignments: any, timezone = 'Asia/Tokyo
                             if (!assignment || !assignment.survey || !record.userId) continue;
                             const user: any = await User.findOne({userId: record.userId}).select('deviceToken').lean().exec();
                             if (!user || !user.deviceToken) continue;
+                            // Claim durably before contacting FCM. A crash or timeout is ambiguous:
+                            // retain the claim for operator review, never automatically retry it.
+                            const claimed = await model.findOneAndUpdate(
+                                {_id: record._id, ...filter},
+                                {$set: {[started]: new Date(), [state]: 'pending'}}, {new: true}).lean().exec();
+                            if (!claimed) continue;
                             const survey = assignment.survey;
                             let accepted = false;
                             try {
@@ -1407,10 +1416,12 @@ private static getDatasetsOfAssignments(assignments: any, timezone = 'Asia/Tokyo
                                     expiring ? survey.expireNotificationBody : survey.publishNotificationBody,
                                     {kirokunAssignmentId: String(assignment._id), kirokunUserId: String(record.userId),
                                      kirokunEnvironment: process.env.ACCOUNT_SCOPE || 'proto'});
-                            } catch (_) { /* Leave unmarked for a later timer pass. */ }
+                            } catch (_) { /* Keep the durable claim: provider acceptance is unknown. */ }
                             if (accepted) {
                                 await model.updateOne({_id: record._id, [marker]: {$exists: false}},
-                                    {$set: {[marker]: new Date()}}).exec();
+                                    {$set: {[marker]: new Date(), [state]: 'accepted'}}).exec();
+                            } else {
+                                await model.updateOne({_id: record._id}, {$set: {[state]: 'review_required'}}).exec();
                             }
                         }
                     } finally { await cursor.close(); }
