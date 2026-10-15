@@ -306,3 +306,14 @@ P2切戻しでは期限拒否も解除され得るため調査再開を自動判
 ### 判断事項 / 完了条件
 承認対象はP1のみか、停止可能時間、Proto検証専用予約を許可するか（現状は不許可）を次段階で確認。P2/P3・共同研究者配布・一般公開・既存データ補正は別判断。
 仕上げ完了は必要な修正単位ごとに実行版・候補版・実機証拠・出力照合が対応し、通知要確認の運用/復元/切戻しが準備され、保留事項の扱いが合意された時点。表示確認完了だけで全体完了としない。
+
+## 2026-10-15 P1承認・Proto API限定反映（管理画面受入待ち）
+- 本人がP1、事前バックアップ/隔離復元、検証専用予約追加を承認。既存補正・P2/P3・共同研究者配布は禁止継続。
+- 接続先uva.alchembright.com、~/kirokun-proto、kirokun-proto-api-1を確認。反映前API 8fa56480af99cc37c49822fbdb83b547ff73420329ff7fb55ca4d5b29d272ee9、checkout64bb7f4。既存未追跡compose.yaml.before-host-guardは保全。
+- バックアップsurvey-20261015T133606Z-3021249.archive.gz（サーバーbackups/）取得。SHA/gzip検査、network none/512MB制限の隔離Mongo復元8972件成功・失敗0、全コレクション件数一致。verify-backup.shでverifiedを付与。APIは取得時短時間停止後に復帰。
+- 既存予約4197件、expireAt欠落948件（null検索948件と重複）。この数を不正データ確定とは扱わず原因/由来の分類は未実施。既存データ補正なし。個人・グループとも将来publishAtの件数0（配信予定全体の網羅的証明ではない）。
+- 独立checkout consolidation/web-baseline/proto-p1、fix/proto-p1-expiry、commit2856fd8。現行64bb7f4から期限Date渡し1行＋回帰試験のみ。修正前コンパイル済serviceのSHAが稼働版と一致。日付境界3ケースで公開保存値と期限+60分成功。
+- 現行イメージを親としてコンパイル済service1個だけ追加したイメージkirokun-api:p1-expiry-20261015。新イメージ0f8549abe35e225511fe5877723b394ae997da1452fa37ad5d0215da52402ea1。2026-10-15T13:39:35Z起動。health200/ready=true、全distハッシュ比較でservice以外不変、DB全コレクション件数不変、Web実イメージ不変。
+- サーバーcheckout2856fd8へfast-forward。compose.yamlのAPI imageのみ固定タグへ変更（配備設定差分として残る）。.env変更なし。P2/P3とDev向け変更なし。テスト用ファイルをイメージへ含めず秘密値の移管なし。
+- 切戻し資産は~/kirokun-proto/ops/state/p1-20261015/（.env, compose.yaml, api-image, web-image, commit, backup-name, logs, bundle, image recipe）。切戻す場合は保全compose.yamlを戻してdocker compose --env-file .env -f compose.yaml up -d --no-deps --no-build --pull never --wait api。旧イメージは保持。DBは戻さない。ソースcheckoutは実行版の切戻しと別に記録し、無断resetしない。
+- Proto管理画面はログイン待ち。本人へログインを依頼済み。管理画面での検証専用予約保存→DB/API/UI日時照合は未実施で、P1受入完了とは扱わない。予約追加・回答・通知・共同研究者配布はこの時点で実施なし。
