@@ -244,3 +244,9 @@ Devホスト（または検証localhost）に限定した登録ガードと、/m
 - iOS署名Archive/export成功: version2.0.0/build2026101501、source1f189df。codesign verify成功。IPA SHA256 ef66e8cde84840f0d5c73d910190765555fa0a3bdd5e5ab712e6ab6446d96b83。
 - Android versionCode8を40817d2で固定、既存正式鍵でprepareProtoDistribution成功。APK署名証明書一致・Proto package・non-debuggable検査成功、AAB jarsigner verify成功。APK SHA256 3bc21677f5cf65e6136f5f304bb80a639bd61f6ae59849c1dc9763f16f9f0d35、AAB dbc66817374b2d1976a103481831d8b17f10e8ff6dc1a0f67456100adff0e788。
 - 成果物: consolidation/mobile-migration/releases/{ios,android}/20261015-dev-finish、対応表releases/candidate-20261015.json。ローカル署名済み候補の固定であり、配布承認/正式公開ではない。Protoサーバー操作・ストアアップロード・候補の利用者配信なし。
+
+## 2026-10-15 固定候補の実機回帰着手
+- 固定Android APKをOPPOへadb install -r成功、端末versionCode8/versionName2.0.0を読取確認。データ消去なし。一覧/ログイン/回答済み状態の本人確認待ち。候補そのもののインストール成功と動作成功は別判定。
+- 固定iOS IPA内部のプロファイルを読取: ProvisionedDevicesなし、ProvisionsAllDevices=false、get-task-allow=false。App Store配布用のため直接端末導入対象ではない。ストア配信禁止を維持しアップロードしない。Devや別署名の導入を「固定IPAそのものの実機成功」と扱わない。
+- Devで通信失敗/連打用の合成予約を準備: iPhone6ad0cdf4704badc8caf6e532、OPPO6ad0cdf4704badc8caf6e533。既存回答を保持。iPhone本人へ最終確認画面で機内モード＋Wi-Fiオフ→1回送信、失敗案内/入力保持の確認を依頼。再接続後の二重タップ/保存件数確認は続く手順で、まだ実施していない。
+- 今回Protoサーバーの設定/データ/配備、ストア配信は実施なし。Android候補起動時の通常通信が起こり得るため、端末操作とサーバー配備は区別する。
