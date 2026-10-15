@@ -263,3 +263,9 @@ Devホスト（または検証localhost）に限定した登録ガードと、/m
 - App Store Connect直接確認: 共同研究者・確認済み版は2名/3builds、Manual for Xcode Builds。開発者グループ0名。上松・先行確認は上松の2アカウントのみ、Automatic for Xcode Builds。今回上松限定のTestFlight配信を承認。
 - 固定Archive2026101501をxcodebuild export destination=uploadでアップロード開始。成功/Apple処理/グループ配布の確認はまだ未完。App Store一般公開・共同研究者へのビルド追加は実施しない。
 - 2026-10-15 22:14:07 JST xcodebuild Upload succeeded/EXPORT SUCCEEDED確認。Apple processing中。直後の上松グループ一覧は旧4ビルドのみで2026101501未表示、TestFlight利用可能とはまだ断定しない。共同研究者への追加なし。
+
+## 2026-10-15 TestFlight 2026101501 利用可能確認
+- Apple処理完了後、暗号化申告を保存。App Store Connectで2.0.0(2026101501)が上松・先行確認グループの5番目のビルドとしてTesting、有効90日と表示されたことを直接確認。
+- ビルド詳細の割当は上松・先行確認（本人2アカウント）と開発者グループ（0名）のみ。Individual Testers 0、共同研究者グループの割当なし。本人用テスト案内も保存した。
+- 固定Archive/source1f189df由来。配布利用可能と実機成功は区別し、このTestFlight版の更新・起動・状態保持は本人確認待ち。Protoサーバーのコード/設定/データ操作、共同研究者配布、App Store審査提出・一般公開は今回実施なし。
+- 次は本人端末でTestFlightの2.0.0(2026101501)へ更新し、ログイン状態・Survey一覧・過去の回答済み状態・長い名前表示を確認。Protoへの期限拒否対応は未反映なので、Devの期限試験成功をこの組合せの成功と扱わない。
