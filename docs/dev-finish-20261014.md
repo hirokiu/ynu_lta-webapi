@@ -256,3 +256,10 @@ Devホスト（または検証localhost）に限定した登録ガードと、/m
 - OPPO Devの通信遮断試験: 本人が失敗案内/入力保持を確認。予約6ad0cdf4704badc8caf6e533を読み取り照合しdatasetなし・期限内。通信復帰後の2回タップと一覧復帰/保存結果の確認を依頼中。Proto操作・配信なし。
 - OPPO再接続後の2回素早いタップ: 本人が一覧復帰/回答済みを確認。Dev予約6ad0cdf4704badc8caf6e533はdataset1個・設問回答1個、同一予約group結果0、保存2026-10-15T13:04:33.157Z（期限内）。通信失敗時の未保存から再接続後の保存まで確認、保存結果に重複なし。HTTPリクエスト回数自体は未観測。
 - 両OSのDev実機で通信失敗案内・入力保持・再接続後連続タップ・一覧復帰・1件保存を確認済み。固定Android Proto APK8は上書き後の状態保持まで確認済み、同APKでの回答回帰は未実施。固定iOS App Store IPAは直接導入不可のため実機未確認。Dev成功を固定配布物の全回帰成功と読み替えない。Proto配備/ストア配信なし。
+
+## 上松限定TestFlightとAndroid固定候補回答
+- 本人がProto検証専用Survey/予約/回答1件の追加を明示承認。Protoコード/設定/既存研究データは対象外。合成Survey6ad0d0b95f3f8e42bdcc1cf6、予約6ad0d0b95f3f8e42bdcc1cfa。既存qa_proto_androidアカウントのみ対象。publishNotifiedAt/expireNotifiedAtは試験通知抑止のため付与（実際のFCM送信証拠ではない）。
+- OPPO固定APK8で本人が送信/回答済みを確認。DB dataset1個/設問回答1個、2026-10-15T13:11:09.909Z期限内保存を照合。サーバー配備なし。
+- App Store Connect直接確認: 共同研究者・確認済み版は2名/3builds、Manual for Xcode Builds。開発者グループ0名。上松・先行確認は上松の2アカウントのみ、Automatic for Xcode Builds。今回上松限定のTestFlight配信を承認。
+- 固定Archive2026101501をxcodebuild export destination=uploadでアップロード開始。成功/Apple処理/グループ配布の確認はまだ未完。App Store一般公開・共同研究者へのビルド追加は実施しない。
+- 2026-10-15 22:14:07 JST xcodebuild Upload succeeded/EXPORT SUCCEEDED確認。Apple processing中。直後の上松グループ一覧は旧4ビルドのみで2026101501未表示、TestFlight利用可能とはまだ断定しない。共同研究者への追加なし。
