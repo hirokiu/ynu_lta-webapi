@@ -639,7 +639,7 @@ export class SurveyService {
             SurveyService.dbgMsg("publishAtMoment:    date  " + publishAtMoment.toDate());
             SurveyService.dbgMsg("publishAtMoment UTC date: " + publishAtMoment.utc().toDate());
 
-            this.saveNewAssignment(sid, uid, publishAtDate, expireAtDate.format, (code, body) => { res.status(code).send(body); });
+            this.saveNewAssignment(sid, uid, publishAtDate, expireAtDate, (code, body) => { res.status(code).send(body); });
         });
     }
 
