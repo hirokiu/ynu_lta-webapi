@@ -317,3 +317,10 @@ P2切戻しでは期限拒否も解除され得るため調査再開を自動判
 - サーバーcheckout2856fd8へfast-forward。compose.yamlのAPI imageのみ固定タグへ変更（配備設定差分として残る）。.env変更なし。P2/P3とDev向け変更なし。テスト用ファイルをイメージへ含めず秘密値の移管なし。
 - 切戻し資産は~/kirokun-proto/ops/state/p1-20261015/（.env, compose.yaml, api-image, web-image, commit, backup-name, logs, bundle, image recipe）。切戻す場合は保全compose.yamlを戻してdocker compose --env-file .env -f compose.yaml up -d --no-deps --no-build --pull never --wait api。旧イメージは保持。DBは戻さない。ソースcheckoutは実行版の切戻しと別に記録し、無断resetしない。
 - Proto管理画面はログイン待ち。本人へログインを依頼済み。管理画面での検証専用予約保存→DB/API/UI日時照合は未実施で、P1受入完了とは扱わない。予約追加・回答・通知・共同研究者配布はこの時点で実施なし。
+
+## 2026-10-15 P1管理画面保存確認
+- 本人が通常のユーザー名/パスワードでProto管理画面へログイン成功。Googleログインのunauthorized-domainは別課題として保留、Firebase設定変更なし。
+- 既存合成Survey6ad0d0b95f3f8e42bdcc1cf6、既存QA Android対象者だけを管理画面のSchedule Onceで選択し、2026-10-15 23:59 JSTを保存。新規予約6ad0dfda8e36600007afaa7fが1件作成された。
+- DB読取: publishAt=2026-10-15T14:59:00Z、expireAt=2026-10-15T15:59:00Z、差60分、datasetなし。API経由の管理画面詳細で23:59→翌日00:59 +09:00の一致を確認。APIレスポンス本文の独立採取はしていない（APIから再取得した画面とDBの照合）。
+- 新しく作った当該QA予約だけpublishNotifiedAt/expireNotifiedAtを付与して通知を抑止。これは実通知の送信記録ではない。既存予約・回答は未変更、回答送信や実機通知試験なし。予約を削除せず証拠として保持。
+- P1の管理画面→単発予約保存→DB→再取得表示の日付越え確認は成功。P2/P3、固定候補の残る送信/通知回帰、既存期限欠落948件の原因分類/補正は未実施。全Refactoring完了とは扱わない。
