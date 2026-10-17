@@ -1,3 +1,4 @@
+import { answerWindowError, answerWriteGuard } from '../utils/answerWindow';
 import { Request, Response, response } from "express";
 import { MongooseDocument, Mongoose, Error } from "mongoose";
 import { Model, Document, DocumentQuery } from "mongoose";
@@ -535,21 +536,28 @@ export class SurveyService {
                 res.status(400).json({error: 'Invalid answer submission'}); return;
             }
             try {
-                const assignment: any = await Assignment.findById(req.params.aid).select('userId groupId').lean().exec();
+                const assignment: any = await Assignment.findById(req.params.aid).select('userId groupId publishAt expireAt').lean().exec();
                 if (!assignment) { res.sendStatus(404); return; }
                 const update = {$set: {dataset: {answers: req.body.answers}}};
                 if (assignment.groupId) {
                     const member = await Group.exists({groupId: assignment.groupId, userIds: targetUserId});
                     if (!member) { res.sendStatus(403); return; }
+                    const recipient: any = await AssignmentResults.findOne({assignment: assignment._id, userId: targetUserId})
+                        .select('publishAt expireAt').lean().exec();
+                    if (!recipient) { res.status(404).json({error: 'Assignment recipient was not prepared'}); return; }
+                    const windowError = answerWindowError(recipient, Date.now());
+                    if (windowError) { res.status(409).json({error: windowError}); return; }
                     const result = await AssignmentResults.findOneAndUpdate(
-                        {assignment: assignment._id, userId: targetUserId}, update, {new: true}).exec();
-                    if (!result) { res.status(404).json({error: 'Assignment recipient was not prepared'}); return; }
+                        {assignment: assignment._id, userId: targetUserId, ...answerWriteGuard()}, update, {new: true}).exec();
+                    if (!result) { res.status(409).json({error: 'Assignment is closed or already answered'}); return; }
                     res.status(201).send('the Dataset has been stored.');
                 } else {
                     if (assignment.userId !== targetUserId) { res.sendStatus(403); return; }
+                    const windowError = answerWindowError(assignment, Date.now());
+                    if (windowError) { res.status(409).json({error: windowError}); return; }
                     const result = await Assignment.findOneAndUpdate(
-                        {_id: assignment._id, userId: targetUserId}, update, {new: true}).exec();
-                    if (!result) { res.sendStatus(404); return; }
+                        {_id: assignment._id, userId: targetUserId, ...answerWriteGuard()}, update, {new: true}).exec();
+                    if (!result) { res.status(409).json({error: 'Assignment is closed or already answered'}); return; }
                     res.json(result);
                 }
             } catch (_) { res.status(500).json({error: 'Could not save answers'}); }
@@ -1372,11 +1380,14 @@ private static getDatasetsOfAssignments(assignments: any, timezone = 'Asia/Tokyo
             for (const expiring of [false, true]) {
                 const dateField = expiring ? 'expireAt' : 'publishAt';
                 const marker = expiring ? 'expireNotifiedAt' : 'publishNotifiedAt';
+                const started = expiring ? 'expireNotificationStartedAt' : 'publishNotificationStartedAt';
+                const state = expiring ? 'expireNotificationState' : 'publishNotificationState';
                 const condition: any = {
                     [dateField]: expiring
                         ? {$gte: now.toDate(), $lte: now.clone().add(NOTIFY_EXPIRE_IN_MINUTES, 'm').toDate()}
                         : {$gte: now.clone().subtract(NOTIFY_PUBLISH_SINCE_MINUTES, 'm').toDate(), $lte: now.toDate()},
-                    [marker]: {$exists: false}
+                    [marker]: {$exists: false},
+                    [started]: {$exists: false}
                 };
                 if (expiring) condition.dataset = {$exists: false};
                 for (const grouped of [false, true]) {
@@ -1391,6 +1402,12 @@ private static getDatasetsOfAssignments(assignments: any, timezone = 'Asia/Tokyo
                             if (!assignment || !assignment.survey || !record.userId) continue;
                             const user: any = await User.findOne({userId: record.userId}).select('deviceToken').lean().exec();
                             if (!user || !user.deviceToken) continue;
+                            // Claim durably before contacting FCM. A crash or timeout is ambiguous:
+                            // retain the claim for operator review, never automatically retry it.
+                            const claimed = await model.findOneAndUpdate(
+                                {_id: record._id, ...filter},
+                                {$set: {[started]: new Date(), [state]: 'pending'}}, {new: true}).lean().exec();
+                            if (!claimed) continue;
                             const survey = assignment.survey;
                             let accepted = false;
                             try {
@@ -1399,10 +1416,12 @@ private static getDatasetsOfAssignments(assignments: any, timezone = 'Asia/Tokyo
                                     expiring ? survey.expireNotificationBody : survey.publishNotificationBody,
                                     {kirokunAssignmentId: String(assignment._id), kirokunUserId: String(record.userId),
                                      kirokunEnvironment: process.env.ACCOUNT_SCOPE || 'proto'});
-                            } catch (_) { /* Leave unmarked for a later timer pass. */ }
+                            } catch (_) { /* Keep the durable claim: provider acceptance is unknown. */ }
                             if (accepted) {
                                 await model.updateOne({_id: record._id, [marker]: {$exists: false}},
-                                    {$set: {[marker]: new Date()}}).exec();
+                                    {$set: {[marker]: new Date(), [state]: 'accepted'}}).exec();
+                            } else {
+                                await model.updateOne({_id: record._id}, {$set: {[state]: 'review_required'}}).exec();
                             }
                         }
                     } finally { await cursor.close(); }

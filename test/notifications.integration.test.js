@@ -13,7 +13,7 @@ const {Assignment,AssignmentResults,User}=require('../dist/models/survey.model')
  delivery='accepted';assert.equal(await sender.sendMessage('synthetic-token'),true);
  const target={kirokunAssignmentId:'0123456789abcdef01234567',kirokunUserId:'qa',kirokunEnvironment:'dev'};
  await sender.sendMessage('synthetic-token','title','body',target);assert.deepEqual(lastMessage.data,target);
- process.env.ACCOUNT_SCOPE='dev';
+ process.env.ACCOUNT_SCOPE='dev';process.env.DEV_QA_NOTIFICATION_USERS='qa';
  await mongoose.connect('mongodb://127.0.0.1:27071/kirokun_notifications_'+crypto.randomBytes(6).toString('hex'),{useNewUrlParser:true,useUnifiedTopology:true,autoIndex:false});
  try {
   await User.create({userId:'qa',deviceToken:'synthetic-token'});
@@ -28,7 +28,9 @@ const {Assignment,AssignmentResults,User}=require('../dist/models/survey.model')
   await runner.FindRegistrationTokensForNotification(async(token,title,body,data)=>{calls++;assert.equal(data.kirokunUserId,'qa');assert.equal(data.kirokunEnvironment,'dev');assert([String(individual._id),String(group._id)].includes(data.kirokunAssignmentId));return false});assert.equal(calls,4);
   assert.equal((await Assignment.findById(individual._id)).publishNotifiedAt,undefined);
   assert.equal((await AssignmentResults.findById(recipient._id)).expireNotifiedAt,undefined);
-  calls=0;await runner.FindRegistrationTokensForNotification(async()=>{calls++;throw Error('provider unavailable')});assert.equal(calls,4);
+  calls=0;await runner.FindRegistrationTokensForNotification(async()=>{calls++;throw Error('must not retry ambiguous delivery')});assert.equal(calls,0);
+  // Explicit reset is test-only, not an automatic production recovery policy.
+  for(const model of [Assignment,AssignmentResults]) await model.updateMany({},{$unset:{publishNotificationStartedAt:'',expireNotificationStartedAt:'',publishNotificationState:'',expireNotificationState:''}});
   let release,entered;const started=new Promise(r=>entered=r);const blocked=new Promise(r=>release=r);
   calls=0;const first=runner.FindRegistrationTokensForNotification(async()=>{calls++;if(calls===1){entered();await blocked;}return true});
   await started;await runner.FindRegistrationTokensForNotification(async()=>{throw Error('must not overlap')});assert.equal(calls,1);release();await first;assert.equal(calls,4);

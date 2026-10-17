@@ -100,7 +100,11 @@ const AssignmentSchema = new mongoose.Schema(
     publishTo: Date,
 
     publishNotifiedAt: Date,
+    publishNotificationStartedAt: Date,
+    publishNotificationState: String,
     expireNotifiedAt: Date,
+    expireNotificationStartedAt: Date,
+    expireNotificationState: String,
     firstOpenedAt: Date,
     lastOpenedAt: Date,
 
@@ -126,7 +130,11 @@ const AssignmentResultsSchema = new mongoose.Schema(
     expireAt: Date,
 
     publishNotifiedAt: Date,
+    publishNotificationStartedAt: Date,
+    publishNotificationState: String,
     expireNotifiedAt: Date,
+    expireNotificationStartedAt: Date,
+    expireNotificationState: String,
     firstOpenedAt: Date,
     lastOpenedAt: Date,
 
